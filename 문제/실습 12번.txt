@@ -1,0 +1,359 @@
+#include "GL/glew.h"
+#include "GL/freeglut.h"
+#include "GL/glm/glm.hpp"
+#include "GL/glm/ext.hpp"
+#include "GL/glm/gtc/matrix_transform.hpp"
+#include <iostream>
+#include "VertexShader.hpp"
+#include "FragShader.hpp"
+#include "ShaderProgram.hpp"
+#include <vector>
+#include <random>
+#include <cmath>
+#include <memory>
+#include <functional>
+/*
+VBO는 최소 250000개의 정점을 담고있을수있다.
+Depends on the video card and the amount of video RAM.
+ATI cards with 128 MB of video RAM are limited by the drivers to a maximum of 32 MB per vertex buffer.
+With multiple buffers the total can easily go beyond 32 MB with no problem, but I haven’t tried to find a cap.
+*/
+
+int windowNumber = 0;
+int percentage = 0;
+bool isTimerOn1 = false;
+
+//auto transMatrix = glm::mat4(1.0f);
+float rads = 0.0f;
+float xPos = 0.0f;
+float yPos = 0.0f;
+float deltaS = 90.0f;
+float cubeRadian=0.0f;
+float pyramidRadian=0.0f;
+float yAxisRadian = 0.0f;
+float yAxisRadius = 0.1f;
+float yAxisXpos = 0.0f;
+float yAxisZpos = 0.0f;
+bool isCubeRotate = false;
+bool isPyramidRotate = false;
+bool isYaxisRotate = false;
+bool isTimerOn2 = false;
+bool isBasicPolygon = false;
+GLvoid drawScene(GLvoid);
+GLvoid Reshape(int w, int h);
+GLvoid keyBoardEvent(unsigned char key, int x, int y);
+GLvoid timerFunc(int);
+GLvoid initMatrix();
+
+GLuint compileShaders();
+
+int WIDTH = 800;
+int HEIGTH = 600;
+
+GLuint shaderProgramID;
+
+GLUquadricObj *qobj;
+
+auto transMatrix = glm::mat4(1.0f);
+
+float Xaxis[] =
+{
+	  -1.0f,0.0f,0.0f,
+	  1.0f,0.0f,0.0f
+
+};
+
+float Yaxis[] =
+{
+	0.0f,-1.0f,0.0f,
+	0.0f,1.0f,0.0f
+};
+
+float Zaxis[] =
+{
+	1.0f,1.0f,-1.0f,
+	-1.0f,-1.0f,1.0f
+};
+float cube[] =
+{
+	-1.0f,-1.0f,-1.0f, // triangle 1 : begin
+	-1.0f,-1.0f, 1.0f,
+	-1.0f, 1.0f, 1.0f, // triangle 1 : end
+	1.0f, 1.0f,-1.0f, // triangle 2 : begin
+	-1.0f,-1.0f,-1.0f,
+	-1.0f, 1.0f,-1.0f, // triangle 2 : end
+	1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f, 1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f,-1.0f,
+	1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f, 1.0f, 1.0f,
+	-1.0f,-1.0f, 1.0f,
+	1.0f,-1.0f, 1.0f,
+	1.0f, 1.0f, 1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f, 1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f, 1.0f, 1.0f,
+	1.0f,-1.0f, 1.0f,
+	1.0f, 1.0f, 1.0f,
+	1.0f, 1.0f,-1.0f,
+	-1.0f, 1.0f,-1.0f,
+	1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f,-1.0f,
+	-1.0f, 1.0f, 1.0f,
+	1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f, 1.0f,
+	1.0f,-1.0f, 1.0f
+};
+float pyramid[] =
+{
+	-1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,1.0f,//여기까지 밑면
+	-1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	0.0f,1.0f,0.0f,//여기까지 앞면
+	-1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	0.0f,1.0f,0.0f,//여기까지 뒷면
+	1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,1.0f,
+	0.0f,1.0f,0.0f,//여기까지 오른면
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,1.0f,
+	0.0f,1.0f,0.0f,//여기까지 왼면
+
+};
+unsigned int VBO[5], VAO[5];
+
+void main(int argc, char** argv)
+{
+	//create window
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+	glutInitWindowPosition(0, 0);
+	glutInitWindowSize(WIDTH, HEIGTH);
+	windowNumber = glutCreateWindow("2016182044HJO");
+	//GLEW init
+	glewExperimental = GL_TRUE;
+	if (glewInit() != GLEW_OK)
+	{
+		std::cerr << "Unable to initalize GLEW" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	else
+		std::cout << "GLEW initialized\n";
+
+	shaderProgramID = compileShaders();
+
+	for (int i = 0; i < 108; ++i)
+	{
+		cube[i] = cube[i] / 4.0f;
+	}
+	for (int i = 0; i < 54; ++i)
+	{
+		pyramid[i] = pyramid[i] / 4.0f;
+	}
+	glGenVertexArrays(5, VAO);
+	glGenBuffers(5, VBO);
+
+	glBindVertexArray(VAO[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(Xaxis), Xaxis, GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+	glEnableVertexAttribArray(0);
+
+
+	glBindVertexArray(VAO[1]);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(Yaxis), Yaxis, GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+	glEnableVertexAttribArray(0);
+
+	glBindVertexArray(VAO[2]);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(Zaxis), Zaxis, GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+	glEnableVertexAttribArray(0);
+
+	glBindVertexArray(VAO[3]);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[3]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(cube), cube, GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+	glEnableVertexAttribArray(0);
+
+	glBindVertexArray(VAO[4]);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[4]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(pyramid), pyramid, GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+	glEnableVertexAttribArray(0);
+
+	glutDisplayFunc(drawScene);
+	glutKeyboardFunc(keyBoardEvent);
+	glutReshapeFunc(Reshape);//window의 모양이 바뀔때마다 호출될 함수를 등록한다.
+	glutTimerFunc(100, timerFunc, 1);
+	glutMainLoop();
+}
+
+GLvoid drawScene()//glutpostredisplay가 호출되면 DisplayFunc에 등록된 콜백함수가 호출된다.
+{
+	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glMatrixMode(GL_MODELVIEW);//이전 모델뷰 행렬을 리셋한다.
+	glEnable(GL_DEPTH_TEST);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	glUseProgram(shaderProgramID);
+	initMatrix();
+	auto transformLocation = glGetUniformLocation(shaderProgramID, "transform");
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+
+	for (int i = 0; i < 3; ++i)
+	{
+		glBindVertexArray(VAO[i]);
+		glDrawArrays(GL_LINE_LOOP, 0, 2);
+	}
+	//transMatrix = glm::translate(transMatrix, glm::vec3(yAxisRadius*glm::cos(glm::radians(yAxisRadian)), yAxisRadius*glm::sin(glm::radians(yAxisRadian)), 0.0f));
+	//transMatrix = glm::rotate(transMatrix, glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(yAxisRadian), glm::vec3(0.0f, 1.0f, 0.0f));
+	transMatrix = glm::translate(transMatrix, glm::vec3(-0.5f, 0.0f, 0.0f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(-yAxisRadian), glm::vec3(0.0f, 1.0f, 0.0f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(cubeRadian), glm::vec3(1.0f, 0.0f, 0.0f));
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	if (isBasicPolygon)
+	{
+		glBindVertexArray(VAO[3]);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+	}
+	else
+	{
+		qobj = gluNewQuadric();
+		gluQuadricNormals(qobj, GLU_SMOOTH);
+		gluQuadricOrientation(qobj, GLU_OUTSIDE);
+		gluSphere(qobj, 0.3f, 20, 20);
+	}
+	initMatrix();
+	transMatrix = glm::rotate(transMatrix, glm::radians(yAxisRadian), glm::vec3(0.0f, 1.0f, 0.0f));
+	transMatrix = glm::translate(transMatrix, glm::vec3(0.5f, 0.0f, 0.0f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(-yAxisRadian), glm::vec3(0.0f, 1.0f, 0.0f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(pyramidRadian), glm::vec3(0.0f, 1.0f, 0.0f));
+	//transMatrix = glm::rotate(transMatrix, glm::radians(330.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	if (isBasicPolygon) 
+	{
+		glBindVertexArray(VAO[4]);
+		glDrawArrays(GL_TRIANGLES, 0, 18);
+	}
+	else
+	{
+		gluQuadricNormals(qobj, GLU_SMOOTH);
+		gluQuadricOrientation(qobj, GLU_OUTSIDE);
+		gluCylinder(qobj, 0.25f, 0.25f, 0.5f, 20, 8);
+	}
+	glutSwapBuffers();//더블버퍼모드이기때문에 flush대신에 glutswapbuffers를 호출한다.
+}
+//vPos
+GLvoid Reshape(int w, int h)
+{
+	glViewport(0, 0, w, h);
+	WIDTH = w;
+	HEIGTH = h;
+}
+
+
+GLuint compileShaders()
+{
+	VertexShader vShader1("vertexSource.txt");
+	vShader1.createAndCompile();
+	FragShader fShader1("FragSource.txt");
+	fShader1.createAndCompile();
+	ShaderProgram ShaderProgram1;
+	ShaderProgram1.attachAndLink({ fShader1.retShader(),vShader1.retShader() });
+
+	return ShaderProgram1.retProgramID();
+}
+
+GLvoid keyBoardEvent(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case 'x':
+		if (isCubeRotate)
+			isCubeRotate = false;
+		else isCubeRotate = true;
+		break;
+	case 'y':
+		if (isPyramidRotate)
+			isPyramidRotate = false;
+		else isPyramidRotate = true;
+		break;
+	case 'b':
+		if (isYaxisRotate)
+			isYaxisRotate = false;
+		else isYaxisRotate = true;
+		break;
+	case 'c':
+		if (isBasicPolygon)
+			isBasicPolygon = false;
+		else isBasicPolygon = true;
+		break;
+	case 's':
+		isCubeRotate = false;
+		isPyramidRotate = false;
+		isYaxisRotate = false;
+		break;
+	default:
+		break;
+	}
+	glutPostRedisplay();
+}
+
+GLvoid timerFunc(int index)
+{
+	if (isTimerOn1)
+	{
+		
+	}
+	if (isCubeRotate)
+	{
+		cubeRadian += 3.0;
+	}
+	if (isPyramidRotate)
+	{
+		pyramidRadian += 3.0;
+	}
+	if (isYaxisRotate)
+	{
+		yAxisRadian += 3.0f;
+	}
+	glutTimerFunc(100, timerFunc, 1);
+	glutPostRedisplay();
+}
+
+GLvoid initMatrix()
+{
+	glLoadIdentity();
+	for (int i = 0; i < 4; ++i)
+	{
+		for (int j = 0; j < 4; ++j)
+		{
+			transMatrix[i][j] = 0.0f;
+		}
+	}
+	transMatrix[0][0] = 1.0f;
+	transMatrix[1][1] = 1.0f;
+	transMatrix[2][2] = 1.0f;
+	transMatrix[2][2] = 1.0f;
+	transMatrix[3][3] = 1.0f;
+
+}

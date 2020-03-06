@@ -1,0 +1,541 @@
+#include "GL/glew.h"
+#include "GL/freeglut.h"
+#include "GL/glm/glm.hpp"
+#include "GL/glm/ext.hpp"
+#include "GL/glm/gtc/matrix_transform.hpp"
+#include <iostream>
+#include "VertexShader.hpp"
+#include "FragShader.hpp"
+#include "ShaderProgram.hpp"
+#include <vector>
+#include <random>
+#include <ctime>
+#include <memory>
+#include <functional>
+#define _CRT_SECURE_NO_WARNINGS
+
+/*
+VBO??ÏµúÏÜå 250000Í∞úÏùò ?ïÏ†ê???¥Í≥†?àÏùÑ?òÏûà??
+Depends on the video card and the amount of video RAM.
+ATI cards with 128 MB of video RAM are limited by the drivers to a maximum of 32 MB per vertex buffer.
+With multiple buffers the total can easily go beyond 32 MB with no problem, but I haven?ôt tried to find a cap.
+*/
+
+int windowNumber = 0;
+int percentage = 0;
+
+int indexFrame = 0;
+int curHour = 0;
+int curMin = 0;
+int curSec = 0;
+
+bool isTimerOn1 = false;
+bool isTimerOn2 = false;
+
+bool isCraneMoveRight = false;
+bool isMidCraneRotate = false;
+bool isTopCraneRotate = false;
+bool isRotation = false;
+bool isCraneMove = false;
+bool isRotateRight = false;
+bool isCameraXmove = false;
+bool isCameraZmove = false;
+bool isCameraMoveRight = false;
+bool isCameraZooming = false;
+bool isCameraRotate = false;
+bool isCameraRevolution = false;
+
+float step = 3.5f;
+float cameraZpos = 10.0f;
+float cameraXpos = 0.0f;
+float cameraYpos = 3.0f;
+float craneXpos = 0.0f;
+float midCraneRads = 0.0f;
+float topCraneRads = 0.0f;
+float cameraRotateRadians = 90.0f;
+float cameraRevolRadians = 0.0f;
+const int vertexSize = 30;
+const float perDegree = 360 / vertexSize;
+
+float radius = 25.0f;
+float circleOfCamera[90];
+
+GLvoid drawScene(GLvoid);
+GLvoid Reshape(int w, int h);
+GLvoid keyBoardEvent(unsigned char key, int x, int y);
+GLvoid timerFunc(int);
+GLvoid initMatrix();
+GLuint compileShaders();
+
+int WIDTH = 800;
+int HEIGTH = 600;
+
+GLuint shaderProgramID;
+
+GLUquadricObj *qobj;
+
+auto transMatrix = glm::mat4(1.0f);
+auto viewMatrix = glm::mat4(1.0f);
+auto projectionMatrix = glm::mat4(1.0f);
+
+float cube[] =
+{
+	-1.0f,-1.0f,-1.0f, // triangle 1 : begin
+	-1.0f,-1.0f, 1.0f,
+	-1.0f, 1.0f, 1.0f, // triangle 1 : end
+	1.0f, 1.0f,-1.0f, // triangle 2 : begin
+	-1.0f,-1.0f,-1.0f,
+	-1.0f, 1.0f,-1.0f, // triangle 2 : end//øﬁ¬  ø∑∏È.
+	1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f, 1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f,-1.0f,
+	1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f, 1.0f, 1.0f,
+	-1.0f,-1.0f, 1.0f,
+	1.0f,-1.0f, 1.0f,
+	1.0f, 1.0f, 1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f, 1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f, 1.0f, 1.0f,
+	1.0f,-1.0f, 1.0f,
+	1.0f, 1.0f, 1.0f,
+	1.0f, 1.0f,-1.0f,
+	-1.0f, 1.0f,-1.0f,
+	1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f,-1.0f,
+	-1.0f, 1.0f, 1.0f,
+	1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f, 1.0f,
+	1.0f,-1.0f, 1.0f
+};
+float color1[] =
+{
+	 0.583f,  0.771f,  0.014f,
+	0.609f,  0.115f,  0.436f,
+	0.327f,  0.483f,  0.844f,
+	0.822f,  0.569f,  0.201f,
+	0.435f,  0.602f,  0.223f,
+	0.310f,  0.747f,  0.185f,
+	0.597f,  0.770f,  0.761f,
+	0.559f,  0.436f,  0.730f,
+	0.359f,  0.583f,  0.152f,
+	0.483f,  0.596f,  0.789f,
+	0.559f,  0.861f,  0.639f,
+	0.195f,  0.548f,  0.859f,
+	0.014f,  0.184f,  0.576f,
+	0.771f,  0.328f,  0.970f,
+	0.406f,  0.615f,  0.116f,
+	0.676f,  0.977f,  0.133f,
+	0.971f,  0.572f,  0.833f,
+	0.140f,  0.616f,  0.489f,
+	0.997f,  0.513f,  0.064f,
+	0.945f,  0.719f,  0.592f,
+	0.543f,  0.021f,  0.978f,
+	0.279f,  0.317f,  0.505f,
+	0.167f,  0.620f,  0.077f,
+	0.347f,  0.857f,  0.137f,
+	0.055f,  0.953f,  0.042f,
+	0.714f,  0.505f,  0.345f,
+	0.783f,  0.290f,  0.734f,
+	0.722f,  0.645f,  0.174f,
+	0.302f,  0.455f,  0.848f,
+	0.225f,  0.587f,  0.040f,
+	0.517f,  0.713f,  0.338f,
+	0.053f,  0.959f,  0.120f,
+	0.393f,  0.621f,  0.362f,
+	0.673f,  0.211f,  0.457f,
+	0.820f,  0.883f,  0.371f,
+	0.982f,  0.099f,  0.879f
+
+};
+float color2[] =
+{
+	 0.583f,  0.771f,  0.014f,
+	0.609f,  0.115f,  0.436f,
+	0.327f,  0.483f,  0.844f,
+	0.822f,  0.569f,  0.201f,
+	0.435f,  0.602f,  0.223f,
+	0.310f,  0.747f,  0.185f,
+	0.597f,  0.770f,  0.761f,
+	0.559f,  0.436f,  0.730f,
+	0.359f,  0.583f,  0.152f,
+	0.483f,  0.596f,  0.789f,
+	0.559f,  0.861f,  0.639f,
+	0.195f,  0.548f,  0.859f,
+	0.014f,  0.184f,  0.576f,
+	0.771f,  0.328f,  0.970f,
+	0.406f,  0.615f,  0.116f,
+	0.676f,  0.977f,  0.133f,
+	0.971f,  0.572f,  0.833f,
+	0.140f,  0.616f,  0.489f,
+	0.997f,  0.513f,  0.064f,
+	0.945f,  0.719f,  0.592f,
+	0.543f,  0.021f,  0.978f,
+	0.279f,  0.317f,  0.505f,
+	0.167f,  0.620f,  0.077f,
+	0.347f,  0.857f,  0.137f,
+	0.055f,  0.953f,  0.042f,
+	0.714f,  0.505f,  0.345f,
+	0.783f,  0.290f,  0.734f,
+	0.722f,  0.645f,  0.174f,
+	0.302f,  0.455f,  0.848f,
+	0.225f,  0.587f,  0.040f,
+	0.517f,  0.713f,  0.338f,
+	0.053f,  0.959f,  0.120f,
+	0.393f,  0.621f,  0.362f,
+	0.673f,  0.211f,  0.457f,
+	0.820f,  0.883f,  0.371f,
+	0.982f,  0.099f,  0.879f
+
+};
+float color3[] =
+{
+	 0.583f,  0.771f,  0.014f,
+	0.609f,  0.115f,  0.436f,
+	0.327f,  0.483f,  0.844f,
+	0.822f,  0.569f,  0.201f,
+	0.435f,  0.602f,  0.223f,
+	0.310f,  0.747f,  0.185f,
+	0.597f,  0.770f,  0.761f,
+	0.559f,  0.436f,  0.730f,
+	0.359f,  0.583f,  0.152f,
+	0.483f,  0.596f,  0.789f,
+	0.559f,  0.861f,  0.639f,
+	0.195f,  0.548f,  0.859f,
+	0.014f,  0.184f,  0.576f,
+	0.771f,  0.328f,  0.970f,
+	0.406f,  0.615f,  0.116f,
+	0.676f,  0.977f,  0.133f,
+	0.971f,  0.572f,  0.833f,
+	0.140f,  0.616f,  0.489f,
+	0.997f,  0.513f,  0.064f,
+	0.945f,  0.719f,  0.592f,
+	0.543f,  0.021f,  0.978f,
+	0.279f,  0.317f,  0.505f,
+	0.167f,  0.620f,  0.077f,
+	0.347f,  0.857f,  0.137f,
+	0.055f,  0.953f,  0.042f,
+	0.714f,  0.505f,  0.345f,
+	0.783f,  0.290f,  0.734f,
+	0.722f,  0.645f,  0.174f,
+	0.302f,  0.455f,  0.848f,
+	0.225f,  0.587f,  0.040f,
+	0.517f,  0.713f,  0.338f,
+	0.053f,  0.959f,  0.120f,
+	0.393f,  0.621f,  0.362f,
+	0.673f,  0.211f,  0.457f,
+	0.820f,  0.883f,  0.371f,
+	0.982f,  0.099f,  0.879f
+
+};
+unsigned int VBO[3], VAO[3], VBOC[3];
+
+void main(int argc, char** argv)
+{
+	//create window
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+	glutInitWindowPosition(0, 0);
+	glutInitWindowSize(WIDTH, HEIGTH);
+	windowNumber = glutCreateWindow("2016182044HJO");
+	//GLEW init
+	glewExperimental = GL_TRUE;
+	if (glewInit() != GLEW_OK)
+	{
+		std::cerr << "Unable to initalize GLEW" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	else
+		std::cout << "GLEW initialized\n";
+
+	std::random_device rd;
+	std::default_random_engine dre(rd());
+	std::uniform_real_distribution<> urd(0.0f, 1.0f);
+	for (int i = 0; i < vertexSize * 3; i += 3)
+	{
+		circleOfCamera[i] = radius * cos(glm::radians(float(360 / vertexSize * (i / 3))));
+		circleOfCamera[i + 1] = 0.0f;
+		circleOfCamera[i + 2] = radius * sin(glm::radians(float(360 / vertexSize * (i / 3))));
+	}
+	for (int i = 0; i < 105; ++i)
+	{
+		color2[i] = urd(dre);
+	}
+	for (int i = 0; i < 105; ++i)
+	{
+		color3[i] = urd(dre);
+	}
+	shaderProgramID = compileShaders();
+	
+	glGenVertexArrays(3, VAO);
+	glGenBuffers(3, VBO);
+	glGenBuffers(3, VBOC);
+	for (int i = 0; i < 3; ++i)
+	{
+		glBindVertexArray(VAO[i]);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[i]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(cube), cube, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBOC[i]);
+		if(i==0)
+			glBufferData(GL_ARRAY_BUFFER, sizeof(color1), color1, GL_DYNAMIC_DRAW);
+		else if(i==1)
+			glBufferData(GL_ARRAY_BUFFER, sizeof(color2), color2, GL_DYNAMIC_DRAW);
+		else
+			glBufferData(GL_ARRAY_BUFFER, sizeof(color3), color3, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(1);
+	}
+
+	glutDisplayFunc(drawScene);
+	glutKeyboardFunc(keyBoardEvent);
+	glutReshapeFunc(Reshape);//window??Î™®Ïñë??Î∞îÎÄîÎïåÎßàÎã§ ?∏Ï∂ú???®ÏàòÎ•??±Î°ù?úÎã§.
+	glutTimerFunc(100, timerFunc, 1);
+	glutMainLoop();
+}
+GLvoid Reshape(int w, int h)
+{
+	glViewport(0, 0, w, h);
+	WIDTH = w;
+	HEIGTH = h;
+}
+GLvoid drawScene()
+{
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glMatrixMode(GL_MODELVIEW);
+	glEnable(GL_DEPTH_TEST);
+	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	glUseProgram(shaderProgramID);
+
+	initMatrix();
+	viewMatrix = glm::mat4(1.0f);
+	projectionMatrix = glm::mat4(1.0f);
+	auto modelTransformLocation = glGetUniformLocation(shaderProgramID, "transform");
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+
+	auto viewTransformLocation = glGetUniformLocation(shaderProgramID, "viewTransform");
+	glUniformMatrix4fv(viewTransformLocation, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
+	auto projectionTransformLocation = glGetUniformLocation(shaderProgramID, "projectionTransform");
+	glUniformMatrix4fv(projectionTransformLocation, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	//get location of uniform!
+
+	auto eye = glm::vec3(cameraXpos, cameraYpos, cameraZpos);
+	auto direction = glm::vec3(0.0f, 0.0f, -1.0f);
+	direction.x = cos(glm::radians(0.0f)) * cos(glm::radians(cameraRotateRadians));
+	direction.y = sin(glm::radians(0.0f));
+	direction.z = -(cos(glm::radians(0.0f)) * sin(glm::radians(cameraRotateRadians)));
+
+
+	direction = glm::normalize(direction);
+	viewMatrix = glm::lookAt(eye, eye+direction, glm::vec3(0.0f, 1.0f, 0.0f));
+	
+	viewMatrix = glm::translate(viewMatrix, -eye);
+	viewMatrix = glm::rotate(viewMatrix, glm::radians(cameraRevolRadians), glm::vec3(0.0f, 1.0f, 0.0f));
+	viewMatrix = glm::translate(viewMatrix, eye);
+	
+	glUniformMatrix4fv(viewTransformLocation, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
+	projectionMatrix = glm::perspective(glm::radians(120.0f), 4.0f / 3.0f, 0.1f, 1000.0f);
+	glUniformMatrix4fv(projectionTransformLocation, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+
+	transMatrix = glm::translate(transMatrix, glm::vec3(craneXpos, 0.0f, 0.0f));
+	transMatrix = glm::scale(transMatrix, glm::vec3(3.0f, 1.0f, 2.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glBindVertexArray(VAO[0]);
+	glDrawArrays(GL_TRIANGLES, 0, 48);
+	//√ππ¯¬∞ ¡§¿∞∏È√º x√‡3πË «ÿº≠ ±◊∏Æ±‚.
+	
+	initMatrix();
+	transMatrix = glm::translate(transMatrix, glm::vec3(craneXpos, 2.0f, 0.0f));
+	transMatrix = glm::scale(transMatrix, glm::vec3(1.5f, 1.0f, 1.0f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(midCraneRads), glm::vec3(0.0f, 1.0f, 0.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glBindVertexArray(VAO[1]);
+	glDrawArrays(GL_TRIANGLES, 0, 48);
+	//µŒπ¯¬∞ ¡§¿∞∏È√º x√‡1.5πË «ÿº≠ ±◊∏Æ±‚.
+
+	initMatrix();
+	transMatrix = glm::translate(transMatrix, glm::vec3(craneXpos, 5.0f, 0.0f));
+	transMatrix = glm::scale(transMatrix, glm::vec3(0.5f, 2.0f, 0.5f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(midCraneRads), glm::vec3(0.0f, 1.0f, 0.0f));
+	transMatrix = glm::translate(transMatrix, glm::vec3(0.0f, -0.5f, 0.0f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(topCraneRads), glm::vec3(0.0f, 0.0f, 1.0f));
+	transMatrix = glm::translate(transMatrix, glm::vec3(0.0f, 0.5f, 0.0f));
+
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glBindVertexArray(VAO[2]);
+	glDrawArrays(GL_TRIANGLES, 0, 48);
+
+	glutSwapBuffers();
+}
+GLuint compileShaders()
+{
+	VertexShader vShader1("vertexSource.txt");
+	vShader1.createAndCompile();
+	FragShader fShader1("FragSource.txt");
+	fShader1.createAndCompile();
+	ShaderProgram ShaderProgram1;
+	ShaderProgram1.attachAndLink({ fShader1.retShader(),vShader1.retShader() });
+
+	return ShaderProgram1.retProgramID();
+}
+GLvoid keyBoardEvent(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case 'm':
+		if (isMidCraneRotate)
+		{
+			isMidCraneRotate = false;
+		}
+		else isMidCraneRotate = true;
+		break;
+	case 't':
+		if (isTopCraneRotate)
+		{
+			isTopCraneRotate = false;
+		}
+		else isTopCraneRotate = true;
+		break;
+	case 's':
+		if (isCraneMove)
+			isCraneMove = false;
+		else isCraneMove = true;
+		break;
+	case 'q':
+		glutLeaveMainLoop();
+		break;
+	case 'z':
+		if (isCameraZmove)
+			isCameraZmove = false;
+		else isCameraZmove = true;
+		break;
+	case 'x':
+		if (isCameraXmove)
+			isCameraXmove = false;
+		else isCameraXmove = true;
+		break;
+	case 'c':
+		if (isCameraRevolution)
+			isCameraRevolution = false;
+		else isCameraRevolution = true;
+		break;
+	case 'r':
+		if (isCameraRotate)
+			isCameraRotate = false;
+		else isCameraRotate = true;
+		break;
+	}
+}
+
+GLvoid timerFunc(int index)
+{
+	if (isCraneMove)
+	{
+		if (isCraneMoveRight)
+		{
+			craneXpos += 0.3f;
+			if (craneXpos >= 3.0f)
+				isCraneMoveRight = false;
+		}
+		else
+		{
+			craneXpos -= 0.3f;
+			if (craneXpos <= -3.0f)
+				isCraneMoveRight = true;
+		}
+	}
+	if (isMidCraneRotate)
+	{
+		midCraneRads += 3.0f;
+	}
+	if (isTopCraneRotate)
+	{
+		if (isRotateRight)
+		{
+			topCraneRads += 3.0f;
+			if (topCraneRads >= 90.0f)
+				isRotateRight = false;
+		}
+		else
+		{
+			topCraneRads -= 3.0f;
+			if (topCraneRads <= -90.0f)
+				isRotateRight = true;
+		}
+	}
+	if (isCameraXmove)
+	{
+		if (isCameraMoveRight)
+		{
+			cameraXpos += 0.5f;
+			if (cameraXpos >= 7.0f)
+				isCameraMoveRight = false;
+		}
+		else
+		{
+			cameraXpos -= 0.5f;
+			if (cameraXpos <= -7.0f)
+				isCameraMoveRight = true;
+		}
+	}
+	if (isCameraZmove)
+	{
+		if (isCameraZooming)
+		{
+			cameraZpos += 0.5f;
+			if (cameraZpos >= 15.0f)
+				isCameraZooming = false;
+		}
+		else
+		{
+			cameraZpos -= 0.5f;
+			if (cameraZpos <= 7.0f)
+				isCameraZooming = true;
+		}
+	}
+	if (isCameraRotate)
+	{
+		cameraRotateRadians += 3.0f;
+	}
+	if (isCameraRevolution)
+	{
+		cameraRevolRadians += 3.0f;
+	}
+	glutTimerFunc(50, timerFunc, 1);
+	glutPostRedisplay();
+}
+
+
+
+GLvoid initMatrix()
+{
+	glLoadIdentity();
+	for (int i = 0; i < 4; ++i)
+	{
+		for (int j = 0; j < 4; ++j)
+		{
+			transMatrix[i][j] = 0.0f;
+		}
+	}
+	transMatrix[0][0] = 1.0f;
+	transMatrix[1][1] = 1.0f;
+	transMatrix[2][2] = 1.0f;
+	transMatrix[2][2] = 1.0f;
+	transMatrix[3][3] = 1.0f;
+
+}

@@ -1,0 +1,425 @@
+#include "GL/glew.h"
+#include "GL/freeglut.h"
+#include "GL/glm/glm.hpp"
+#include "GL/glm/ext.hpp"
+#include "GL/glm/gtc/matrix_transform.hpp"
+#include <iostream>
+#include "VertexShader.hpp"
+#include "FragShader.hpp"
+#include "ShaderProgram.hpp"
+#include <vector>
+#include <random>
+#include <cmath>
+#include <memory>
+#include <functional>
+/*
+VBO는 최소 250000개의 정점을 담고있을수있다.
+Depends on the video card and the amount of video RAM.
+ATI cards with 128 MB of video RAM are limited by the drivers to a maximum of 32 MB per vertex buffer.
+With multiple buffers the total can easily go beyond 32 MB with no problem, but I haven’t tried to find a cap.
+*/
+int index = 0;
+int windowNumber = 0;
+int percentage = 0;
+bool isTimerOn1 = false;
+bool isTri = true;
+bool isRotate = false;
+bool isRevolution = false;
+bool isBigger = true;
+bool isSin = true;
+bool isZig = false;
+bool isSpring = false;
+//auto transMatrix = glm::mat4(1.0f);
+float rads = 0.0f;
+float xPos = 0.0f;
+float yPos = 0.0f;
+float deltaS = 90.0f;
+float yAxisRadius = 0.01f;
+float angle = 0.0f;
+float zValue = 1.0f;
+bool isTimerOn2 = false;
+GLvoid drawScene(GLvoid);
+GLvoid Reshape(int w, int h);
+GLvoid keyBoardEvent(unsigned char key, int x, int y);
+GLvoid timerFunc(int);
+
+GLuint compileShaders();
+
+int WIDTH = 800;
+int HEIGTH = 600;
+
+GLuint shaderProgramID;
+
+GLUquadricObj *qobj;
+
+float Xaxis[] =
+{
+	  -1.0f,0.0f,0.0f,
+	  1.0f,0.0f,0.0f
+
+};
+
+float Yaxis[] =
+{
+	0.0f,-1.0f,0.0f,
+	0.0f,1.0f,0.0f
+};
+
+float triangle[] =
+{
+	0.0f,0.0f,0.0f,
+	0.2f,0.0f,0.0f,
+	0.1f,0.2f,0.0f
+};
+
+unsigned int VBO[3], VAO[3];
+
+class SinGraph
+{
+public:
+	float* coords;
+	int size;
+	SinGraph()
+	{
+		size = 127;
+		curRad = -6.28f;
+		normalize = 6.28f;
+		coords = new float[size * 3];
+		for (int i = 0; i < size * 3; i += 3)
+		{
+			coords[i] = curRad / normalize;
+			coords[i + 1] = glm::sin(curRad);
+			coords[i + 2] = 0.0f;
+			curRad += 0.1f;
+		}
+		glGenVertexArrays(1, &VAO);
+		glGenBuffers(1, &VBO);
+		glBindVertexArray(VAO);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 3 * size, coords, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+	}
+	GLvoid drawGraph()
+	{
+		glBindVertexArray(VAO);
+		glDrawArrays(GL_LINE_STRIP, 0, size);
+	}
+private:
+	unsigned int VBO, VAO;
+	float curRad;
+	float normalize;
+};
+SinGraph *mySinGraph;
+
+class SpringGraph
+{
+public:
+	float* coords;
+	int size;
+	SpringGraph()
+	{
+		size = 370;
+		radius = 0.2;
+		curRad = 0.0;
+		curX = -0.8;
+		coords = new float[size * 3];
+		for (int i = 0; i < size * 3; i += 3)
+		{
+			coords[i] = curX + (radius * glm::cos(glm::radians(curRad)));
+			coords[i + 1] = radius * glm::sin(glm::radians(curRad));
+			coords[i + 2] = 0.0f;
+			curRad += 10.0;
+			if(curRad<370.0)
+				curX += 0.004;
+			if (curRad == 370.0)
+			{
+				curRad = 0;
+			}
+		}
+		glGenVertexArrays(1, &VAO);
+		glGenBuffers(1, &VBO);
+		glBindVertexArray(VAO);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 3 * size, coords, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+	}
+	~SpringGraph()
+	{
+		glDeleteVertexArrays(1,&VAO);
+		glDeleteBuffers(1,&VBO);
+	}
+	GLvoid drawGraph()
+	{
+		glBindVertexArray(VAO);
+		glDrawArrays(GL_LINE_STRIP, 0, size);
+	}
+private:
+	unsigned int VBO, VAO;
+	float radius;
+	float curRad;
+	float normalize;
+	float curX;
+};
+SpringGraph *mySpring;
+
+class ZigZag
+{
+public:
+	float* coords;
+	int size;
+	ZigZag()
+	{
+		size = 41;
+		curYpos = 0.0f;
+		curXpos = -1.0f;
+		coords = new float[size * 3];
+		for (int i = 0; i < size * 3; i += 3)
+		{
+			coords[i] = curXpos;
+			coords[i + 1] = curYpos;
+			coords[i + 2] = 0.0f;
+			curXpos += 0.05f;
+			if (isUp)
+			{
+				curYpos += 0.05f;
+				if (curYpos >= 0.2f)
+					isUp = false;
+			}
+			else
+			{
+				curYpos -= 0.05f;
+				if (curYpos <= -0.2f)
+					isUp = true;
+			}
+		}
+		glGenVertexArrays(1, &VAO);
+		glGenBuffers(1, &VBO);
+		glBindVertexArray(VAO);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 3 * size, coords, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+	}
+	GLvoid drawGraph()
+	{
+		glBindVertexArray(VAO);
+		glDrawArrays(GL_LINE_STRIP, 0, size);
+	}
+private:
+	unsigned int VBO, VAO;
+	float curYpos;
+	float curXpos;
+	bool isUp;
+};
+ZigZag* myZigZag;
+
+void main(int argc, char** argv)
+{
+	//create window
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+	glutInitWindowPosition(0, 0);
+	glutInitWindowSize(WIDTH, HEIGTH);
+	windowNumber = glutCreateWindow("2016182044HJO");
+	//GLEW init
+	glewExperimental = GL_TRUE;
+	if (glewInit() != GLEW_OK)
+	{
+		std::cerr << "Unable to initalize GLEW" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	else
+		std::cout << "GLEW initialized\n";
+
+	shaderProgramID = compileShaders();
+
+	glGenVertexArrays(3, VAO);
+	glGenBuffers(3, VBO);
+
+	glBindVertexArray(VAO[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(Xaxis), Xaxis, GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+	glEnableVertexAttribArray(0);
+
+
+	glBindVertexArray(VAO[1]);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(Yaxis), Yaxis, GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+	glEnableVertexAttribArray(0);
+
+	glBindVertexArray(VAO[2]);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(triangle), triangle, GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+	glEnableVertexAttribArray(0);
+
+	mySinGraph = new SinGraph();
+	myZigZag = new ZigZag();
+	mySpring = new SpringGraph();
+
+	glutDisplayFunc(drawScene);
+	glutKeyboardFunc(keyBoardEvent);
+	glutReshapeFunc(Reshape);//window의 모양이 바뀔때마다 호출될 함수를 등록한다.
+	glutTimerFunc(100, timerFunc, 1);
+	glutMainLoop();
+	delete mySinGraph;
+	delete myZigZag;
+	delete mySpring;
+}
+
+GLvoid drawScene()//glutpostredisplay가 호출되면 DisplayFunc에 등록된 콜백함수가 호출된다.
+{
+	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glMatrixMode(GL_MODELVIEW);//이전 모델뷰 행렬을 리셋한다.
+	//glEnable(GL_DEPTH_TEST);
+	glUseProgram(shaderProgramID);
+	auto transMatrix = glm::mat4(1.0f);
+
+	auto transformLocation = glGetUniformLocation(shaderProgramID, "transform");
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+
+	glBindVertexArray(VAO[0]);
+	glDrawArrays(GL_LINE_LOOP, 0, 2);
+	glBindVertexArray(VAO[1]);
+	glDrawArrays(GL_LINE_LOOP, 0, 2);
+	if(isSin)
+		mySinGraph->drawGraph(); // sin 그래프 그리는함수.
+	else if(isZig)
+		myZigZag->drawGraph();
+	else if(isSpring)
+		mySpring->drawGraph();
+	
+	if (isSin)
+		transMatrix = glm::translate(transMatrix, glm::vec3(mySinGraph->coords[index], mySinGraph->coords[index + 1], 0.0f));
+	else if (isZig)
+		transMatrix = glm::translate(transMatrix, glm::vec3(myZigZag->coords[index], myZigZag->coords[index + 1], 0.0f));
+	else if (isSpring)
+		transMatrix = glm::translate(transMatrix, glm::vec3(mySpring->coords[index], mySpring->coords[index + 1], 0.0f));//이동
+	transMatrix = glm::scale(transMatrix, glm::vec3(zValue, zValue, zValue));
+	transMatrix = glm::rotate(transMatrix, glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	if (isTri)
+	{
+		glBindVertexArray(VAO[2]);
+
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+	}
+	else
+	{
+		qobj = gluNewQuadric();
+		gluQuadricDrawStyle(qobj, GLU_LINE);
+		gluQuadricNormals(qobj, GLU_SMOOTH);
+		gluQuadricOrientation(qobj, GLU_OUTSIDE);
+		gluSphere(qobj, 0.1f, 20, 20);
+	}
+	glutSwapBuffers();//더블버퍼모드이기때문에 flush대신에 glutswapbuffers를 호출한다.
+}
+//vPos
+GLvoid Reshape(int w, int h)
+{
+	glViewport(0, 0, w, h);
+	WIDTH = w;
+	HEIGTH = h;
+}
+
+
+GLuint compileShaders()
+{
+	VertexShader vShader1("vertexSource.txt");
+	vShader1.createAndCompile();
+	FragShader fShader1("FragSource.txt");
+	fShader1.createAndCompile();
+	ShaderProgram ShaderProgram1;
+	ShaderProgram1.attachAndLink({ fShader1.retShader(),vShader1.retShader() });
+
+	return ShaderProgram1.retProgramID();
+}
+
+GLvoid keyBoardEvent(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case '1':
+		isSin = true;
+		isZig = false;
+		isSpring = false;
+		::index = 0;
+		break;
+	case '2':
+		isSin = false;
+		isZig = true;
+		isSpring = false;
+		::index = 0;
+		break;
+	case '3':
+		isSin = false;
+		isZig = false;
+		isSpring = true;
+		::index = 0;
+		break;
+	case 'w':
+		if (isTri)
+			isTri = false;
+		else isTri = true;
+		break;
+	case 'y':
+		if (isTimerOn1)
+			isTimerOn1 = false;
+		else
+		{
+			isTimerOn1 = true;
+		}
+		break;
+	case 'r':
+		if (isTimerOn2)
+			isTimerOn2 = false;
+		else isTimerOn2 = true;
+		break;
+	case 'c':
+		xPos = 0.0f;
+		yPos = 0.0f;
+		rads = 0.0f;
+		break;
+	default:
+		break;
+	}
+	glutPostRedisplay();
+}
+
+GLvoid timerFunc(int index)
+{
+	if (isTimerOn1)
+	{
+		::index += 3;
+		if (isSin && ::index >= mySinGraph->size * 3)
+			::index = 0;
+		else if (isZig && ::index >= myZigZag->size * 3)
+			::index = 0;
+		else if (isSpring && ::index >= mySpring->size * 3)
+			::index = 0;
+
+		if (isBigger)
+		{
+			zValue += 0.1f;
+			if (zValue >= 1.5)
+				isBigger = false;
+		}
+		else
+		{
+			zValue -= 0.1f;
+			if (zValue <= 0.5)
+				isBigger = true;
+		}
+	}
+	if (isTimerOn2)
+	{
+		angle += 5.0f;
+	}
+	glutTimerFunc(100, timerFunc, 1);
+	glutPostRedisplay();
+}

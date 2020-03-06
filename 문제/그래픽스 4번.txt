@@ -1,0 +1,215 @@
+#include<iostream>
+#include<random>
+#include<algorithm>
+#include<array>
+#include<cmath>
+using namespace std;
+//원 사각형 충돌은 https://stackoverflow.com/questions/401847/circle-rectangle-collision-detection-intersection 의 2번째 답변을 참고함.
+struct Square
+{
+	int x1, x2, y1, y2;
+}typedef Square;
+
+bool CheckCollisionSquare(Square&s1, Square&s2)
+{
+	//사각형의 충돌은 사각형의 각각의 면에대해서 충돌여부를 체킹해주면됨.
+	bool retVal = true;
+	if (s1.x1 > s2.x2) retVal = false;
+	else if (s1.x2 < s2.x1) retVal = false;
+	else if (s1.y1 < s2.y2) retVal = false;
+	else if (s1.y2 > s2.y1) retVal = false;
+	return retVal;
+}
+bool CheckCollisionCircle(Square& s1, int circleX, int circleY, int rad)
+{
+	//There are only two cases when the circle intersects with the rectangle:
+		//•Either the circle's centre lies inside the rectangle, or
+		//•One of the edges of the rectangle has a point in the circle.
+	auto rectX = (s1.x2 + s1.x1) / 2;
+	auto rectY = (s1.y1 + s1.y2) / 2;
+	int circleDistanceX = abs(circleX - rectX);
+	int circleDistanceY = abs(circleY - rectY);
+	int rectWidth = s1.x2 - s1.x1;
+	int rectHeight = s1.y1 - s1.y2;
+	if (circleDistanceX > (rectWidth / 2 + rad)) { return false; }
+	if (circleDistanceY > (rectHeight / 2 + rad)) { return false; }
+
+	if (circleDistanceX <= (rectWidth / 2)) { return true; }
+	if (circleDistanceY <= (rectHeight / 2)) { return true; }
+	//원 사각형 충돌에서 어려운 부분인데 모서리쪽에서 충돌할경우임.
+	//충돌 판단여부는 모서리에서 원의 중심거리가 원의 반경보다 큰지 작은지를 체킹해주면됨.
+	int cornerDistance_sq = (circleDistanceX - rectWidth / 2) * (circleDistanceX - rectWidth / 2) +
+		(circleDistanceY - rectHeight / 2) * (circleDistanceY - rectHeight / 2);
+
+	return (cornerDistance_sq <= (rad * rad));
+}
+
+void PrintCoord(Square&s)
+{
+	cout << "(" << s.x1 << "," << s.y1 << ") (" << s.x2 << "," << s.y2 << ")" << endl;
+}
+int main()
+{
+	random_device rd;
+	default_random_engine dre(rd());
+	uniform_int_distribution<> uid(0, 500);
+	Square s[2];
+	int circleMidX = 0, circleMidY = 0;
+	int rad = 0;
+	char command;
+	while (1)
+	{
+		cout << "Input Shape(1.rect by rect,   2. rect by circle): ";
+		cin >> command;
+		if (command == '1')
+		{
+			int num1, num2, num3, num4;
+			for (int i = 0; i < 2; ++i)
+			{
+				num1 = uid(dre), num2 = uid(dre);
+				num3 = uid(dre), num4 = uid(dre);
+				int x1 = min(num1, num2);
+				int x2 = max(num1, num2);
+				int y1 = max(num3, num4);
+				int y2 = min(num3, num4);
+				s[i].x1 = x1, s[i].x2 = x2;
+				s[i].y1 = y1, s[i].y2 = y2;
+			}
+
+			cout << "Shape1";
+			PrintCoord(s[0]);
+			cout << "Shape2";
+			PrintCoord(s[1]);
+			while (cin >> command)
+			{
+				if (command == 'a')
+				{
+					s[1].x1 -= 40;
+					s[1].x2 -= 40;
+					cout << "Shape1";
+					PrintCoord(s[0]);
+					cout << "Shape2";
+					PrintCoord(s[1]);
+					if (CheckCollisionSquare(s[0], s[1]))
+						cout << "Collision!!!\n";
+
+				}
+				else if (command == 'd')
+				{
+					s[1].x1 += 40;
+					s[1].x2 += 40;
+					cout << "Shape1";
+					PrintCoord(s[0]);
+					cout << "Shape2";
+					PrintCoord(s[1]);
+					if (CheckCollisionSquare(s[0], s[1]))
+						cout << "Collision!!!\n";
+				}
+				else if (command == 's')
+				{
+					s[1].y1 -= 40;
+					s[1].y2 -= 40;
+					cout << "Shape1";
+					PrintCoord(s[0]);
+					cout << "Shape2";
+					PrintCoord(s[1]);
+					if (CheckCollisionSquare(s[0], s[1]))
+						cout << "Collision!!!\n";
+				}
+				else if (command == 'w')
+				{
+					s[1].y1 += 40;
+					s[1].y2 += 40;
+					cout << "Shape1";
+					PrintCoord(s[0]);
+					cout << "Shape2";
+					PrintCoord(s[1]);
+					if (CheckCollisionSquare(s[0], s[1]))
+						cout << "Collision!!!\n";
+				}
+				else break;
+			}
+			break;
+		}
+
+		else if (command == '2')
+		{
+			int num1, num2, num3, num4;
+			for (int i = 0; i < 2; ++i)
+			{
+				num1 = uid(dre), num2 = uid(dre);
+				num3 = uid(dre), num4 = uid(dre);
+				int x1 = min(num1, num2);
+				int x2 = max(num1, num2);
+				int y1 = max(num3, num4);
+				int y2 = min(num3, num4);
+				s[i].x1 = x1, s[i].x2 = x2;
+				s[i].y1 = y1, s[i].y2 = y2;
+			}
+			int tempWidth = s[1].x2 - s[1].x1;
+			s[1].y2 = s[1].y1 - tempWidth;
+			circleMidX = (s[1].x1 + s[1].x2) / 2;
+			circleMidY = (s[1].y1 + s[1].y2) / 2;
+			rad = abs(s[1].y2 - s[1].y1) / 2;
+			cout << "Shape1";
+			PrintCoord(s[0]);
+			cout << "Shape2";
+			PrintCoord(s[1]);
+			while (cin >> command)
+			{
+				if (command == 'a')
+				{
+					s[1].x1 -= 40;
+					s[1].x2 -= 40;
+					circleMidX -= 40;
+					cout << "Shape1";
+					PrintCoord(s[0]);
+					cout << "Shape2";
+					PrintCoord(s[1]);
+					if (CheckCollisionCircle(s[0], circleMidX, circleMidY, rad))
+						cout << "Collision!!!\n";
+
+				}
+				else if (command == 'd')
+				{
+					s[1].x1 += 40;
+					s[1].x2 += 40;
+					circleMidX += 40;
+					cout << "Shape1";
+					PrintCoord(s[0]);
+					cout << "Shape2";
+					PrintCoord(s[1]);
+					if (CheckCollisionCircle(s[0], circleMidX, circleMidY, rad))
+						cout << "Collision!!!\n";
+				}
+				else if (command == 's')
+				{
+					s[1].y1 -= 40;
+					s[1].y2 -= 40;
+					circleMidY -= 40;
+					cout << "Shape1";
+					PrintCoord(s[0]);
+					cout << "Shape2";
+					PrintCoord(s[1]);
+					if (CheckCollisionCircle(s[0], circleMidX, circleMidY, rad))
+						cout << "Collision!!!\n";
+				}
+				else if (command == 'w')
+				{
+					s[1].y1 += 40;
+					s[1].y2 += 40;
+					circleMidY += 40;
+					cout << "Shape1";
+					PrintCoord(s[0]);
+					cout << "Shape2";
+					PrintCoord(s[1]);
+					if (CheckCollisionCircle(s[0], circleMidX, circleMidY, rad))
+						cout << "Collision!!!\n";
+				}
+				else break;
+			}
+			break;
+		}
+	}
+
+}

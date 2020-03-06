@@ -1,0 +1,649 @@
+#include "GL/glew.h"
+#include "GL/freeglut.h"
+#include "GL/glm/glm.hpp"
+#include "GL/glm/ext.hpp"
+#include "GL/glm/gtc/matrix_transform.hpp"
+#include <iostream>
+#include "VertexShader.hpp"
+#include "FragShader.hpp"
+#include "ShaderProgram.hpp"
+#include <vector>
+#include <random>
+#include <ctime>
+#include <memory>
+#include <functional>
+#define _CRT_SECURE_NO_WARNINGS
+
+enum class DIRECTION
+{
+	LEFT,
+	RIGHT,
+	FRONT,
+	BACK
+};
+DIRECTION ROBOTDIRECTION=DIRECTION::FRONT;
+int windowNumber = 0;
+int percentage = 0;
+
+int indexFrame = 0;
+int curHour = 0;
+int curMin = 0;
+int curSec = 0;
+
+bool isTimerOn1 = false;
+bool isTimerOn2 = false;
+bool isStageOpen = false;
+bool isBodyUp;
+bool isJump = false;
+bool isHigh = false;
+
+float step = 3.5f;
+float cameraZpos = 10.0f;
+float cameraXpos = 0.0f;
+float cameraYpos = 3.0f;
+float craneXpos = 0.0f;
+float stageFrontRads = 0.0f;
+float stageUpRads = 0.0f;
+float robotXpos = 0.0f;
+float robotYpos = 0.0f;
+float robotZpos = 0.0f;
+float bodyRads = 0.0f;
+float bodyDirection = 0.0f;
+float robotVelocity = 0.2f;
+
+const int vertexSize = 30;
+const float perDegree = 360 / vertexSize;
+
+GLvoid drawScene(GLvoid);
+GLvoid Reshape(int w, int h);
+GLvoid keyBoardEvent(unsigned char key, int x, int y);
+GLvoid timerFunc(int);
+GLvoid initMatrix();
+GLuint compileShaders();
+
+int WIDTH = 800;
+int HEIGTH = 600;
+
+GLuint shaderProgramID;
+
+GLUquadricObj *qobj;
+
+auto transMatrix = glm::mat4(1.0f);
+auto viewMatrix = glm::mat4(1.0f);
+auto projectionMatrix = glm::mat4(1.0f);
+
+float cube[] =
+{
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,//아랫면
+	-1.0f,1.0f,1.0f,
+	-1.0f,-1.0f,1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,1.0f,-1.0f,
+	-1.0f,1.0f,1.0f,//왼쪽옆면
+	1.0f,1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,1.0f,1.0f,
+	1.0f,1.0f,-1.0f,//오른쪽옆면
+	-1.0f,1.0f,1.0f,
+	-1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,1.0f,1.0f,
+	-1.0f,1.0f,1.0f,//정면
+	-1.0f,1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f,1.0f,-1.0f,
+	-1.0f,1.0f,-1.0f,//뒷면
+	-1.0f,1.0f,-1.0f,
+	-1.0f,1.0f,1.0f,
+	1.0f,1.0f,1.0f,
+	1.0f,1.0f,1.0f,
+	1.0f,1.0f,-1.0f,
+	-1.0f,1.0f,-1.0f//윗면
+
+};
+float color[8][108];
+float color1[] =
+{
+	 0.583f,  0.771f,  0.014f,
+	0.609f,  0.115f,  0.436f,
+	0.327f,  0.483f,  0.844f,
+	0.822f,  0.569f,  0.201f,
+	0.435f,  0.602f,  0.223f,
+	0.310f,  0.747f,  0.185f,
+	0.597f,  0.770f,  0.761f,
+	0.559f,  0.436f,  0.730f,
+	0.359f,  0.583f,  0.152f,
+	0.483f,  0.596f,  0.789f,
+	0.559f,  0.861f,  0.639f,
+	0.195f,  0.548f,  0.859f,
+	0.014f,  0.184f,  0.576f,
+	0.771f,  0.328f,  0.970f,
+	0.406f,  0.615f,  0.116f,
+	0.676f,  0.977f,  0.133f,
+	0.971f,  0.572f,  0.833f,
+	0.140f,  0.616f,  0.489f,
+	0.997f,  0.513f,  0.064f,
+	0.945f,  0.719f,  0.592f,
+	0.543f,  0.021f,  0.978f,
+	0.279f,  0.317f,  0.505f,
+	0.167f,  0.620f,  0.077f,
+	0.347f,  0.857f,  0.137f,
+	0.055f,  0.953f,  0.042f,
+	0.714f,  0.505f,  0.345f,
+	0.783f,  0.290f,  0.734f,
+	0.722f,  0.645f,  0.174f,
+	0.302f,  0.455f,  0.848f,
+	0.225f,  0.587f,  0.040f,
+	0.517f,  0.713f,  0.338f,
+	0.053f,  0.959f,  0.120f,
+	0.393f,  0.621f,  0.362f,
+	0.673f,  0.211f,  0.457f,
+	0.820f,  0.883f,  0.371f,
+	0.982f,  0.099f,  0.879f
+
+};
+float color2[] =
+{
+	 0.583f,  0.771f,  0.014f,
+	0.609f,  0.115f,  0.436f,
+	0.327f,  0.483f,  0.844f,
+	0.822f,  0.569f,  0.201f,
+	0.435f,  0.602f,  0.223f,
+	0.310f,  0.747f,  0.185f,
+	0.597f,  0.770f,  0.761f,
+	0.559f,  0.436f,  0.730f,
+	0.359f,  0.583f,  0.152f,
+	0.483f,  0.596f,  0.789f,
+	0.559f,  0.861f,  0.639f,
+	0.195f,  0.548f,  0.859f,
+	0.014f,  0.184f,  0.576f,
+	0.771f,  0.328f,  0.970f,
+	0.406f,  0.615f,  0.116f,
+	0.676f,  0.977f,  0.133f,
+	0.971f,  0.572f,  0.833f,
+	0.140f,  0.616f,  0.489f,
+	0.997f,  0.513f,  0.064f,
+	0.945f,  0.719f,  0.592f,
+	0.543f,  0.021f,  0.978f,
+	0.279f,  0.317f,  0.505f,
+	0.167f,  0.620f,  0.077f,
+	0.347f,  0.857f,  0.137f,
+	0.055f,  0.953f,  0.042f,
+	0.714f,  0.505f,  0.345f,
+	0.783f,  0.290f,  0.734f,
+	0.722f,  0.645f,  0.174f,
+	0.302f,  0.455f,  0.848f,
+	0.225f,  0.587f,  0.040f,
+	0.517f,  0.713f,  0.338f,
+	0.053f,  0.959f,  0.120f,
+	0.393f,  0.621f,  0.362f,
+	0.673f,  0.211f,  0.457f,
+	0.820f,  0.883f,  0.371f,
+	0.982f,  0.099f,  0.879f
+
+};
+float color3[] =
+{
+	 0.583f,  0.771f,  0.014f,
+	0.609f,  0.115f,  0.436f,
+	0.327f,  0.483f,  0.844f,
+	0.822f,  0.569f,  0.201f,
+	0.435f,  0.602f,  0.223f,
+	0.310f,  0.747f,  0.185f,
+	0.597f,  0.770f,  0.761f,
+	0.559f,  0.436f,  0.730f,
+	0.359f,  0.583f,  0.152f,
+	0.483f,  0.596f,  0.789f,
+	0.559f,  0.861f,  0.639f,
+	0.195f,  0.548f,  0.859f,
+	0.014f,  0.184f,  0.576f,
+	0.771f,  0.328f,  0.970f,
+	0.406f,  0.615f,  0.116f,
+	0.676f,  0.977f,  0.133f,
+	0.971f,  0.572f,  0.833f,
+	0.140f,  0.616f,  0.489f,
+	0.997f,  0.513f,  0.064f,
+	0.945f,  0.719f,  0.592f,
+	0.543f,  0.021f,  0.978f,
+	0.279f,  0.317f,  0.505f,
+	0.167f,  0.620f,  0.077f,
+	0.347f,  0.857f,  0.137f,
+	0.055f,  0.953f,  0.042f,
+	0.714f,  0.505f,  0.345f,
+	0.783f,  0.290f,  0.734f,
+	0.722f,  0.645f,  0.174f,
+	0.302f,  0.455f,  0.848f,
+	0.225f,  0.587f,  0.040f,
+	0.517f,  0.713f,  0.338f,
+	0.053f,  0.959f,  0.120f,
+	0.393f,  0.621f,  0.362f,
+	0.673f,  0.211f,  0.457f,
+	0.820f,  0.883f,  0.371f,
+	0.982f,  0.099f,  0.879f
+
+};
+unsigned int VBO[8], VAO[8], VBOC[8];
+
+void main(int argc, char** argv)
+{
+	//create window
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+	glutInitWindowPosition(0, 0);
+	glutInitWindowSize(WIDTH, HEIGTH);
+	windowNumber = glutCreateWindow("2016182044HJO");
+	//GLEW init
+	glewExperimental = GL_TRUE;
+	if (glewInit() != GLEW_OK)
+	{
+		std::cerr << "Unable to initalize GLEW" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	else
+		std::cout << "GLEW initialized\n";
+
+	std::random_device rd;
+	std::default_random_engine dre(rd());
+	std::uniform_real_distribution<> urd(0.1f, 1.0f);
+	for (int i = 0; i < 18; i += 3)
+	{
+		color[0][i] = 1.0f;
+		color[0][i + 1] = 0.0f;
+		color[0][i + 2] = 0.0f;
+	}
+	for (int i = 18 * 1; i < 18 * 2; i += 3)
+	{
+		color[0][i] = 0.0f;
+		color[0][i + 1] = 1.0f;
+		color[0][i + 2] = 0.0f;
+	}
+	for (int i = 18 * 2; i < 18 * 3; i += 3)
+	{
+		color[0][i] = 0.0f;
+		color[0][i + 1] = 0.0f;
+		color[0][i + 2] = 1.0f;
+	}
+	for (int i = 18 * 3; i < 18 * 4; i += 3)
+	{
+		color[0][i] = 1.0f;
+		color[0][i + 1] = 1.0f;
+		color[0][i + 2] = 0.0f;
+	}
+	for (int i = 18 * 4; i < 18 * 5; i += 3)
+	{
+		color[0][i] = 1.0f;
+		color[0][i + 1] = 0.0f;
+		color[0][i + 2] = 1.0f;
+	}
+	for (int i = 18 * 4; i < 18 * 5; i += 3)
+	{
+		color[0][i] = 1.0f;
+		color[0][i + 1] = 1.0f;
+		color[0][i + 2] = 1.0f;
+	}
+	for (int i = 18 * 5; i < 18 * 6; i += 3)
+	{
+		color[0][i] = 1.0f;
+		color[0][i + 1] = 0.0f;
+		color[0][i + 2] = 1.0f;
+	}
+	for (int i = 0; i < 108; i+=3)
+	{
+		color[1][i] = 1.0f;
+		color[1][i+1] = 1.0f;
+		color[1][i+2] = 1.0f;
+		//몸색
+		color[2][i] = 1.0f;
+		color[2][i + 1] = 0.0f;
+		color[2][i + 2] = 0.0f;
+		color[3][i] = 1.0f;
+		color[3][i + 1] = 0.0f;
+		color[3][i + 2] = 0.0f;
+		//양팔
+		color[4][i] = 0.0f;
+		color[4][i + 1] = 1.0f;
+		color[4][i + 2] = 0.0f;
+		color[5][i] = 0.0f;
+		color[5][i + 1] = 1.0f;
+		color[5][i + 2] = 0.0f;
+		//양다리
+		color[6][i] = 0.0f;
+		color[6][i + 1] = 0.0f;
+		color[6][i + 2] = 1.0f;
+		//머리
+		color[7][i] = 1.0f;
+		color[7][i + 1] = 0.0f;
+		color[7][i + 2] = 1.0f;
+		//코
+	}
+	shaderProgramID = compileShaders();
+
+	glGenVertexArrays(8, VAO);
+	glGenBuffers(8, VBO);
+	glGenBuffers(8, VBOC);
+	for (int i = 0; i < 8; ++i)
+	{
+		glBindVertexArray(VAO[i]);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[i]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(cube), cube, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBOC[i]);
+		
+		glBufferData(GL_ARRAY_BUFFER, sizeof(color[i]), color[i], GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(1);
+	}
+
+	glutDisplayFunc(drawScene);
+	glutKeyboardFunc(keyBoardEvent);
+	glutReshapeFunc(Reshape);//window??紐⑥뼇??諛붾붾븣留덈떎 ?몄텧???⑥닔瑜??깅줉?쒕떎.
+	glutTimerFunc(100, timerFunc, 1);
+	glutMainLoop();
+}
+GLvoid Reshape(int w, int h)
+{
+	glViewport(0, 0, w, h);
+	WIDTH = w;
+	HEIGTH = h;
+}
+GLvoid drawScene()
+{
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glMatrixMode(GL_MODELVIEW);
+	glEnable(GL_DEPTH_TEST);
+	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	glUseProgram(shaderProgramID);
+
+	initMatrix();
+	viewMatrix = glm::mat4(1.0f);
+	projectionMatrix = glm::mat4(1.0f);
+	auto modelTransformLocation = glGetUniformLocation(shaderProgramID, "transform");
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+
+	auto viewTransformLocation = glGetUniformLocation(shaderProgramID, "viewTransform");
+	glUniformMatrix4fv(viewTransformLocation, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
+	auto projectionTransformLocation = glGetUniformLocation(shaderProgramID, "projectionTransform");
+	glUniformMatrix4fv(projectionTransformLocation, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	//get location of uniform!
+
+	auto eye = glm::vec3(cameraXpos, cameraYpos, cameraZpos);
+	auto direction = glm::vec3(0.0f, 0.0f, -1.0f);
+
+
+
+	direction = glm::normalize(direction);
+	viewMatrix = glm::lookAt(eye, eye+direction, glm::vec3(0.0f, 1.0f, 0.0f));
+
+	glUniformMatrix4fv(viewTransformLocation, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
+	projectionMatrix = glm::perspective(glm::radians(120.0f), 4.0f / 3.0f, 0.1f, 1000.0f);
+	glUniformMatrix4fv(projectionTransformLocation, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	
+	glBindVertexArray(VAO[0]);
+	
+	transMatrix = glm::scale(transMatrix, glm::vec3(6.0f, 6.0f, 6.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glDrawArrays(GL_TRIANGLES, 0, 18);
+
+	initMatrix();
+	transMatrix = glm::scale(transMatrix, glm::vec3(6.0f, 6.0f, 6.0f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(-stageFrontRads), glm::vec3(1.0f, 0.0f, 0.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glDrawArrays(GL_TRIANGLES, 18, 6);
+	
+	initMatrix();
+	transMatrix = glm::scale(transMatrix, glm::vec3(6.0f, 6.0f, 6.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glDrawArrays(GL_TRIANGLES, 24, 6);
+	
+	initMatrix();
+	transMatrix = glm::scale(transMatrix, glm::vec3(6.0f, 6.0f, 6.0f));
+	transMatrix = rotate(transMatrix, glm::radians(-stageUpRads), glm::vec3(1.0f, 0.0f, 0.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glDrawArrays(GL_TRIANGLES, 30, 6);
+	//여기까지 무대 그리기.
+
+
+	initMatrix();
+	transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos, robotYpos, robotZpos));
+	transMatrix = glm::rotate(transMatrix, glm::radians(bodyDirection), glm::vec3(0.0f, 1.0f, 0.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glBindVertexArray(VAO[1]);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+	//몸통
+	initMatrix();
+	if (ROBOTDIRECTION == DIRECTION::FRONT || ROBOTDIRECTION == DIRECTION::BACK)
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos - 1.5f, robotYpos, robotZpos));
+	else if (ROBOTDIRECTION == DIRECTION::LEFT)
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos, robotYpos, robotZpos - 1.5f));
+	else
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos, robotYpos, robotZpos + 1.5f));
+	transMatrix = glm::scale(transMatrix, glm::vec3(0.5f, 1.0f, 0.5f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(bodyDirection), glm::vec3(0.0f, 1.0f, 0.0f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(bodyRads), glm::vec3(1.0f, 0.0f, 0.0f));
+
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glBindVertexArray(VAO[2]);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+	//왼팔
+
+	initMatrix();
+	if (ROBOTDIRECTION == DIRECTION::FRONT || ROBOTDIRECTION == DIRECTION::BACK)
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos + 1.5f, robotYpos, robotZpos));
+	else if (ROBOTDIRECTION == DIRECTION::LEFT)
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos, robotYpos, robotZpos + 1.5f));
+	else
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos, robotYpos, robotZpos - 1.5f));
+	transMatrix = glm::scale(transMatrix, glm::vec3(0.5f, 1.0f, 0.5f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(bodyDirection), glm::vec3(0.0f, 1.0f, 0.0f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(-bodyRads), glm::vec3(1.0f, 0.0f, 0.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glBindVertexArray(VAO[3]);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+	//오른팔
+	
+	initMatrix();
+	if (ROBOTDIRECTION == DIRECTION::FRONT || ROBOTDIRECTION == DIRECTION::BACK)
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos - 0.5f, robotYpos-2.0f, robotZpos));
+	else if (ROBOTDIRECTION == DIRECTION::LEFT)
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos, robotYpos-2.0f, robotZpos - 0.5f));
+	else
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos, robotYpos-2.0f, robotZpos + 0.5f));
+	transMatrix = glm::scale(transMatrix, glm::vec3(0.5f, 1.0f, 0.5f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(bodyDirection), glm::vec3(0.0f, 1.0f, 0.0f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(-bodyRads), glm::vec3(1.0f, 0.0f, 0.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glBindVertexArray(VAO[4]);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+	//왼다리
+
+	initMatrix();
+	if (ROBOTDIRECTION == DIRECTION::FRONT || ROBOTDIRECTION == DIRECTION::BACK)
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos + 0.5f, robotYpos-2.0f, robotZpos));
+	else if (ROBOTDIRECTION == DIRECTION::LEFT)
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos, robotYpos-2.0f, robotZpos + 0.5f));
+	else
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos, robotYpos-2.0f, robotZpos - 0.5f));
+	transMatrix = glm::scale(transMatrix, glm::vec3(0.5f, 1.0f, 0.5f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(bodyDirection), glm::vec3(0.0f, 1.0f, 0.0f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(bodyRads), glm::vec3(1.0f, 0.0f, 0.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glBindVertexArray(VAO[5]);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+	////오른다리
+
+	initMatrix();
+	transMatrix = glm::scale(transMatrix, glm::vec3(0.7f, 0.7f, 0.7f));
+	transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos + (robotXpos*0.5f), robotYpos + 2.5f, robotZpos+(robotZpos*0.5f)));
+	transMatrix = glm::rotate(transMatrix, glm::radians(bodyDirection), glm::vec3(0.0f, 1.0f, 0.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glBindVertexArray(VAO[6]);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+	////머리
+
+	initMatrix();
+	if (ROBOTDIRECTION == DIRECTION::FRONT)
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos, robotYpos+2.0f, robotZpos+1.0f));
+	else if(ROBOTDIRECTION == DIRECTION::BACK)
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos, robotYpos + 2.0f, robotZpos - 1.0f));
+	else if (ROBOTDIRECTION == DIRECTION::LEFT)
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos-1.0f, robotYpos+2.0f, robotZpos));
+	else
+		transMatrix = glm::translate(transMatrix, glm::vec3(robotXpos+1.0f, robotYpos+2.0f, robotZpos));
+	transMatrix = glm::scale(transMatrix, glm::vec3(0.3f, 0.3f, 0.3f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(bodyDirection), glm::vec3(0.0f, 1.0f, 0.0f));
+
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glBindVertexArray(VAO[7]);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+	////코
+
+	glutSwapBuffers();
+}
+GLuint compileShaders()
+{
+	VertexShader vShader1("vertexSource.txt");
+	vShader1.createAndCompile();
+	FragShader fShader1("FragSource.txt");
+	fShader1.createAndCompile();
+	ShaderProgram ShaderProgram1;
+	ShaderProgram1.attachAndLink({ fShader1.retShader(),vShader1.retShader() });
+
+	return ShaderProgram1.retProgramID();
+}
+GLvoid keyBoardEvent(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case 'o':
+		isStageOpen = true;
+		break;
+	case 'w':
+		bodyDirection = 180.0f;
+		ROBOTDIRECTION = DIRECTION::BACK;
+		break;
+	case 's':
+		bodyDirection = 0.0f;
+		ROBOTDIRECTION = DIRECTION::FRONT;
+		break;
+	case 'd':
+		bodyDirection = 90.0f;
+		ROBOTDIRECTION = DIRECTION::RIGHT;
+		break;
+	case 'a':
+		bodyDirection = 270.0f;
+		ROBOTDIRECTION = DIRECTION::LEFT;
+		break;
+	case 'j':
+		if (!isJump)
+			isJump = true, isHigh = true;
+	}
+}
+
+GLvoid timerFunc(int index)
+{
+	if (isStageOpen)
+	{
+		if (stageFrontRads <= 180.0f) stageFrontRads += 5.0f;
+		if (stageUpRads <= 90.0f)stageUpRads += 5.0f;
+	}
+	if (isJump)
+	{
+		if (isHigh)
+		{
+			robotYpos += robotVelocity;
+			if (robotYpos >= 1.5f)
+				isHigh = false;
+		}
+		else
+		{
+			robotYpos -= robotVelocity;
+			if (robotYpos <= 0.0f)
+			{
+				robotYpos = 0.0f;
+				isHigh = false;
+				isJump = false;
+			}
+		}
+	}
+	if (isBodyUp)
+	{
+		bodyRads += 5.0f;
+		if (bodyRads >= 45.0f)
+			isBodyUp = false;
+	}
+	else
+	{
+		bodyRads -= 5.0f;
+		if (bodyRads <= -45.0f)
+			isBodyUp = true;
+	}
+	if (ROBOTDIRECTION == DIRECTION::FRONT)
+	{
+		if (robotZpos <= 4.0f)
+		{
+			robotZpos += robotVelocity;
+		}
+	}
+	else if (ROBOTDIRECTION == DIRECTION::BACK)
+	{
+		if (robotZpos >= -6.0f)
+		{
+			robotZpos -= robotVelocity;
+		}
+	}
+	else if (ROBOTDIRECTION == DIRECTION::RIGHT)
+	{
+		if (robotXpos <= 5.0f)
+		{
+			robotXpos += robotVelocity;
+;		}
+	}
+	else if (ROBOTDIRECTION == DIRECTION::LEFT)
+	{
+		if (robotXpos >= -5.0f)
+		{
+			robotXpos -= robotVelocity;
+		}
+	}
+	glutTimerFunc(50, timerFunc, 1);
+	glutPostRedisplay();
+}
+
+
+
+GLvoid initMatrix()
+{
+	glLoadIdentity();
+	for (int i = 0; i < 4; ++i)
+	{
+		for (int j = 0; j < 4; ++j)
+		{
+			transMatrix[i][j] = 0.0f;
+		}
+	}
+	transMatrix[0][0] = 1.0f;
+	transMatrix[1][1] = 1.0f;
+	transMatrix[2][2] = 1.0f;
+	transMatrix[2][2] = 1.0f;
+	transMatrix[3][3] = 1.0f;
+
+}

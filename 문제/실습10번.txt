@@ -1,0 +1,469 @@
+#include "GL/glew.h"
+#include "GL/freeglut.h"
+#include "GL/glm/glm.hpp"
+#include "GL/glm/ext.hpp"
+#include "GL/glm/gtc/matrix_transform.hpp"
+#include <iostream>
+#include "VertexShader.hpp"
+#include "FragShader.hpp"
+#include "ShaderProgram.hpp"
+#include <vector>
+#include <random>
+#include <cmath>
+#include <memory>
+#include <functional>
+/*
+VBO는 최소 250000개의 정점을 담고있을수있다.
+Depends on the video card and the amount of video RAM.
+ATI cards with 128 MB of video RAM are limited by the drivers to a maximum of 32 MB per vertex buffer. 
+With multiple buffers the total can easily go beyond 32 MB with no problem, but I haven’t tried to find a cap.
+*/
+
+int windowNumber = 0;
+int percentage = 0;
+bool isTimerOn1 = false;
+bool isTimerOn2 = false;
+bool isWire = true;
+bool isRotate = false;
+bool isRevolution = false;
+bool quadricType[5];
+//auto transMatrix = glm::mat4(1.0f);
+float rads = 0.0f;
+float xPos = 0.0f;
+float yPos = 0.0f;
+float deltaS = 90.0f;
+float yAxisRadius = 0.01f;
+GLvoid drawScene(GLvoid);
+GLvoid Reshape(int w, int h);
+void DoSpecial(int key, int x, int y);
+GLvoid keyBoardEvent(unsigned char key, int x, int y);
+GLvoid timerFunc(int);
+
+GLuint compileShaders();
+
+GLvoid drawShpere();
+GLvoid drawYaxisCone();
+GLvoid drawZaxisCone();
+GLvoid drawDisk();
+GLvoid drawCylinder();
+std::function<GLvoid()> functions[5];
+int WIDTH = 800;
+int HEIGTH = 600;
+
+GLuint shaderProgramID;
+
+GLUquadricObj *qobj;
+
+float Xaxis[] =
+{
+	  -1.0f,0.0f,0.0f,
+	  1.0f,0.0f,0.0f
+
+};
+
+float Yaxis[] =
+{
+	0.0f,-1.0f,0.0f,
+	0.0f,1.0f,0.0f
+};
+
+unsigned int VBO[2], VAO[2];
+
+void main(int argc, char** argv)
+{
+	//create window
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+	glutInitWindowPosition(0, 0);
+	glutInitWindowSize(WIDTH, HEIGTH);
+	windowNumber = glutCreateWindow("2016182044HJO");
+	//GLEW init
+	glewExperimental = GL_TRUE;
+	if (glewInit() != GLEW_OK)
+	{
+		std::cerr << "Unable to initalize GLEW" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	else
+		std::cout << "GLEW initialized\n";
+
+	shaderProgramID = compileShaders();
+
+	functions[0] = drawShpere;
+	functions[1] = drawZaxisCone;
+	functions[2] = drawYaxisCone;
+	functions[3] = drawDisk;
+	functions[4] = drawCylinder;
+	glGenVertexArrays(2, VAO);
+	glGenBuffers(2, VBO);
+	
+	glBindVertexArray(VAO[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(Xaxis), Xaxis, GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+	glEnableVertexAttribArray(0);
+
+
+	glBindVertexArray(VAO[1]);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(Yaxis), Yaxis, GL_DYNAMIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+	glEnableVertexAttribArray(0);
+
+	glutDisplayFunc(drawScene);
+	glutKeyboardFunc(keyBoardEvent);
+	glutSpecialFunc(DoSpecial);
+	glutReshapeFunc(Reshape);//window의 모양이 바뀔때마다 호출될 함수를 등록한다.
+	glutTimerFunc(100, timerFunc, 1);
+	glutMainLoop();
+
+}
+
+GLvoid drawScene()//glutpostredisplay가 호출되면 DisplayFunc에 등록된 콜백함수가 호출된다.
+{
+	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glMatrixMode(GL_MODELVIEW);//이전 모델뷰 행렬을 리셋한다.
+	//glEnable(GL_DEPTH_TEST);
+	glUseProgram(shaderProgramID);
+	auto transMatrix = glm::mat4(1.0f);
+	
+	auto transformLocation = glGetUniformLocation(shaderProgramID, "transform");
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	
+	glBindVertexArray(VAO[0]);
+	glDrawArrays(GL_LINE_LOOP, 0, 2);
+	glBindVertexArray(VAO[1]);
+	glDrawArrays(GL_LINE_LOOP, 0, 2);
+	for (int i = 0; i < 5; ++i)
+	{
+		if (quadricType[i])
+			functions[i]();
+	}
+	glutSwapBuffers();//더블버퍼모드이기때문에 flush대신에 glutswapbuffers를 호출한다.
+}
+//vPos
+GLvoid Reshape(int w, int h)
+{
+	glViewport(0, 0, w, h);
+	WIDTH = w;
+	HEIGTH = h;
+}
+
+
+
+
+GLuint compileShaders()
+{
+	VertexShader vShader1("vertexSource.txt");
+	vShader1.createAndCompile();
+	FragShader fShader1("FragSource.txt");
+	fShader1.createAndCompile();
+	ShaderProgram ShaderProgram1;
+	ShaderProgram1.attachAndLink({ fShader1.retShader(),vShader1.retShader() });
+
+	return ShaderProgram1.retProgramID();
+}
+
+GLvoid keyBoardEvent(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case '1':
+		memset(quadricType, false, 5);
+		quadricType[0] = true;
+		break;
+	case '2':
+		memset(quadricType, false, 5);
+		quadricType[1] = true;
+		break;
+	case '3':
+		memset(quadricType, false, 5);
+		quadricType[2] = true;
+		break;
+	case '4':
+		memset(quadricType, false, 5);
+		quadricType[3] = true;
+		break;
+	case '5':
+		memset(quadricType, false, 5);
+		quadricType[4] = true;
+		break;
+	case 'w':
+		if (isWire)
+			isWire = false;
+		else isWire = true;
+		break;
+	case 'y':
+		if (isTimerOn1)
+		{isTimerOn1 = false, isRotate = false;}
+		else
+		{isTimerOn1 = true, isRotate = true, xPos = 0.0f, yPos = 0.0f, rads=0.0f,isTimerOn2=false, isRevolution = false;}
+		break;
+	case 'r':
+		if(isTimerOn2)
+		{isTimerOn2 = false, isRevolution = false;}
+		else
+		{isTimerOn2 = true, isRevolution = true, xPos = 0.0f, yPos = 0.0f, rads = 0.0f,isTimerOn1=false,isRotate=false,deltaS=90.0f;}
+		break;
+	case 'c':
+		xPos = 0.0f;
+		yPos = 0.0f;
+		rads = 0.0f;
+		break;
+	default:
+		break;
+	}
+	glutPostRedisplay();
+}
+
+void DoSpecial(int key, int x, int y)
+{
+	switch (key)
+	{
+	case GLUT_KEY_LEFT:
+		if(!isTimerOn1 || !isTimerOn2) xPos -= 0.1f;
+		break;
+	case GLUT_KEY_RIGHT:
+		if (!isTimerOn1 || !isTimerOn2) xPos += 0.1f;
+		break;
+	case GLUT_KEY_UP:
+		if (!isTimerOn1 || !isTimerOn2) yPos += 0.1f;
+		break;
+	case GLUT_KEY_DOWN:
+		if (!isTimerOn1 || !isTimerOn2) yPos -= 0.1f;
+		break;
+	default:
+		break;
+	}
+	glutPostRedisplay();
+}
+
+GLvoid timerFunc(int index)
+{
+	if (isTimerOn1 || isTimerOn2)
+	{
+		rads += 5.0f;
+	}
+	glutTimerFunc(100, timerFunc, 1);
+	glutPostRedisplay();
+}
+
+
+GLvoid drawShpere()
+{
+	auto transMatrix = glm::mat4(1.0f);
+	auto transformLocation = glGetUniformLocation(shaderProgramID, "transform");
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	//transMatrix = glm::rotate(transMatrix, glm::radians(270.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+	if (isRotate) transMatrix = glm::rotate(transMatrix, glm::radians(rads), glm::vec3(0.0f, 1.0f, 0.0f));
+	if (isRevolution)//x,z상의 평면을회전. 밑변이x 높이가z
+	{
+		transMatrix = glm::translate(transMatrix, glm::vec3(0.3f*glm::cos(glm::radians(rads)), 0.0f, 0.3f*glm::sin(glm::radians(rads))));
+		if (int(rads) % 360 >= 0 && int(rads) % 360 <= 90)
+		{
+			transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+			deltaS -= 5;
+		}
+		else if (int(rads) % 360 >= 90 && int(rads) % 360 <= 180)
+		{
+			transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+			deltaS += 5;
+		}
+		else if (int(rads) % 360 >= 180 && int(rads) % 360 <= 270)
+		{
+			transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+			deltaS += 5;
+		}
+		else
+		{
+			transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+			deltaS -= 5;
+		}
+	}
+	transMatrix = glm::translate(transMatrix, glm::vec3(xPos, yPos, 0.0f));
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	qobj = gluNewQuadric();
+	if(isWire) gluQuadricDrawStyle(qobj, GLU_LINE);
+	else gluQuadricDrawStyle(qobj, GLU_FILL);
+	gluQuadricNormals(qobj, GLU_SMOOTH);
+	gluQuadricOrientation(qobj, GLU_OUTSIDE);
+	gluSphere(qobj,0.5f,20,20);
+}
+GLvoid drawYaxisCone()
+{
+	auto transMatrix = glm::mat4(1.0f);
+	auto transformLocation = glGetUniformLocation(shaderProgramID, "transform");
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	if (isRotate) transMatrix = glm::rotate(transMatrix, glm::radians(rads), glm::vec3(0.0f, 1.0f, 0.0f));
+	if (isRevolution)//x,z상의 평면을회전. 밑변이x 높이가z
+	{
+		transMatrix = glm::translate(transMatrix, glm::vec3(0.3f*glm::cos(glm::radians(rads)), 0.0f, 0.3f*glm::sin(glm::radians(rads))));
+		if (isRevolution)//x,z상의 평면을회전. 밑변이x 높이가z
+		{
+			transMatrix = glm::translate(transMatrix, glm::vec3(0.5f*glm::cos(glm::radians(rads)), 0.0f, 0.5f*glm::sin(glm::radians(rads))));
+			if (int(rads) % 360 >= 0 && int(rads) % 360 <= 90)
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS -= 5;
+			}
+			else if (int(rads) % 360 >= 90 && int(rads) % 360 <= 180)
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS += 5;
+			}
+			else if (int(rads) % 360 >= 180 && int(rads) % 360 <= 270)
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS += 5;
+			}
+			else
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS -= 5;
+			}
+		}
+	}
+	transMatrix = glm::rotate(transMatrix, glm::radians(270.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+	transMatrix = glm::translate(transMatrix, glm::vec3(xPos, yPos, 0.0f));
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	qobj = gluNewQuadric();
+	if (isWire) gluQuadricDrawStyle(qobj, GLU_LINE);
+	else gluQuadricDrawStyle(qobj, GLU_FILL);
+	gluQuadricNormals(qobj, GLU_SMOOTH);
+	gluQuadricOrientation(qobj, GLU_OUTSIDE);
+	gluCylinder(qobj, 0.5f, 0.0f, 0.5f, 20, 8);
+}
+
+
+GLvoid drawZaxisCone()
+{
+	auto transMatrix = glm::mat4(1.0f);
+	auto transformLocation = glGetUniformLocation(shaderProgramID, "transform");
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	if (isRotate) transMatrix = glm::rotate(transMatrix, glm::radians(rads), glm::vec3(0.0f, 1.0f, 0.0f));
+	if (isRevolution)//x,z상의 평면을회전. 밑변이x 높이가z
+	{
+		transMatrix = glm::translate(transMatrix, glm::vec3(0.3f*glm::cos(glm::radians(rads)), 0.0f, 0.3f*glm::sin(glm::radians(rads))));
+		if (isRevolution)//x,z상의 평면을회전. 밑변이x 높이가z
+		{
+			transMatrix = glm::translate(transMatrix, glm::vec3(0.5f*glm::cos(glm::radians(rads)), 0.0f, 0.5f*glm::sin(glm::radians(rads))));
+			if (int(rads) % 360 >= 0 && int(rads) % 360 <= 90)
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS -= 5.0f;
+			}
+			else if (int(rads) % 360 >= 90 && int(rads) % 360 <= 180)
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS += 5.0f;
+			}
+			else if (int(rads) % 360 >= 180 && int(rads) % 360 <= 270)
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS += 5.0f;
+			}
+			else
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS -= 5.0f;
+			}
+		}
+	}
+	transMatrix = glm::rotate(transMatrix, glm::radians(330.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+	transMatrix = glm::rotate(transMatrix, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	transMatrix = glm::translate(transMatrix, glm::vec3(xPos, yPos, 0.0f));
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	qobj = gluNewQuadric();
+	if (isWire) gluQuadricDrawStyle(qobj, GLU_LINE);
+	else gluQuadricDrawStyle(qobj, GLU_FILL);
+	gluQuadricNormals(qobj, GLU_SMOOTH);
+	gluQuadricOrientation(qobj, GLU_OUTSIDE);
+	gluCylinder(qobj, 0.5f, 0.0f, 0.5f, 20, 8);
+}
+GLvoid drawDisk()
+{
+	auto transMatrix = glm::mat4(1.0f);
+	auto transformLocation = glGetUniformLocation(shaderProgramID, "transform");
+	if (isRotate) transMatrix = glm::rotate(transMatrix, glm::radians(rads), glm::vec3(0.0f, 1.0f, 0.0f));
+	if (isRevolution)//x,z상의 평면을회전. 밑변이x 높이가z
+	{
+		transMatrix = glm::translate(transMatrix, glm::vec3(0.3f*glm::cos(glm::radians(rads)), 0.0f, 0.3f*glm::sin(glm::radians(rads))));
+		if (isRevolution)//x,z상의 평면을회전. 밑변이x 높이가z
+		{
+			transMatrix = glm::translate(transMatrix, glm::vec3(0.5f*glm::cos(glm::radians(rads)), 0.0f, 0.5f*glm::sin(glm::radians(rads))));
+			if (int(rads) % 360 >= 0 && int(rads) % 360 <= 90)
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS -= 5.0f;
+			}
+			else if (int(rads) % 360 >= 90 && int(rads) % 360 <= 180)
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS += 5.0f;
+			}
+			else if (int(rads) % 360 >= 180 && int(rads) % 360 <= 270)
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS += 5.0f;
+			}
+			else
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS -= 5.0f;
+			}
+		}
+	}
+	transMatrix = glm::translate(transMatrix, glm::vec3(xPos, yPos, 0.0f));
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	qobj = gluNewQuadric();
+	if (isWire) gluQuadricDrawStyle(qobj, GLU_LINE);
+	else gluQuadricDrawStyle(qobj, GLU_FILL);
+	gluQuadricNormals(qobj, GLU_SMOOTH);
+	gluQuadricOrientation(qobj, GLU_OUTSIDE);
+	gluDisk(qobj, 0.2f, 0.5f, 20, 2);
+}
+GLvoid drawCylinder()
+{
+	auto transMatrix = glm::mat4(1.0f);
+	auto transformLocation = glGetUniformLocation(shaderProgramID, "transform");
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	//transMatrix = glm::rotate(transMatrix, glm::radians(270.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+	if (isRotate) transMatrix = glm::rotate(transMatrix, glm::radians(rads), glm::vec3(0.0f, 1.0f, 0.0f));
+	if (isRevolution)//x,z상의 평면을회전. 밑변이x 높이가z
+	{
+		transMatrix = glm::translate(transMatrix, glm::vec3(0.3f*glm::cos(glm::radians(rads)), 0.0f, 0.3f*glm::sin(glm::radians(rads))));
+		if (isRevolution)//x,z상의 평면을회전. 밑변이x 높이가z
+		{
+			transMatrix = glm::translate(transMatrix, glm::vec3(0.5f*glm::cos(glm::radians(rads)), 0.0f, 0.5f*glm::sin(glm::radians(rads))));
+			if (int(rads) % 360 >= 0 && int(rads) % 360 <= 90)
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS -= 5.0f;
+			}
+			else if (int(rads) % 360 >= 90 && int(rads) % 360 <= 180)
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS += 5.0f;
+			}
+			else if (int(rads) % 360 >= 180 && int(rads) % 360 <= 270)
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS += 5.0f;
+			}
+			else
+			{
+				transMatrix = glm::scale(transMatrix, glm::vec3(yAxisRadius*deltaS, yAxisRadius*deltaS, 0.0f));
+				deltaS -= 5.0f;
+			}
+		}
+	}
+	transMatrix = glm::translate(transMatrix, glm::vec3(xPos, yPos, 0.0f));
+	glUniformMatrix4fv(transformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	qobj = gluNewQuadric();
+	if (isWire) gluQuadricDrawStyle(qobj, GLU_LINE);
+	else gluQuadricDrawStyle(qobj, GLU_FILL);
+	gluQuadricNormals(qobj, GLU_SMOOTH);
+	gluQuadricOrientation(qobj, GLU_OUTSIDE);
+	gluCylinder(qobj, 0.25f, 0.25f, 0.5f, 20, 8);
+}

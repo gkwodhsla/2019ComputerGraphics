@@ -1,0 +1,129 @@
+#include <stdio.h>
+
+#include <Windows.h>
+
+#include <time.h>
+
+#include<string>
+#include<iostream>
+#include<random>
+
+using namespace std;
+
+const int SIZE_X = 50;
+const int SIZE_Y = 50;
+
+
+//Aldous - Broder Algorithm을 사용하였음.
+//알고리즘에 대해 간단히 설명하자면 임의의 버텍스를 하나 고르고 이웃한 버텍스를 방문한다!
+//만약 방문한 버텍스가 visited yet이면 visited하고 간선을 추가한다.
+//이 과정을 모든 버텍스를 방문할때까지 반복한다.
+//http://weblog.jamisbuck.org/2011/1/17/maze-generation-aldous-broder-algorithm 참고함
+
+int main()
+{
+	int x = 0, y = 0, direction;
+	random_device rd;
+	default_random_engine dre(rd());
+	uniform_int_distribution<> uid(0, 3);
+	int map[SIZE_X][SIZE_Y];
+	int continuos = 0;
+	int beforeDirection = 0;
+	string buffer;
+	while (1)
+	{
+		std::getline(cin, buffer);
+		if (buffer.size() == 0)
+		{
+			for (int i = 0; i < SIZE_Y; i++)
+			{
+				for (int j = 0; j < SIZE_X; j++)
+				{
+					map[j][i] = 1;
+				}
+			}
+			map[x][y] = 0;
+			for (int i = 0; i < 50000; ++i)
+			{
+				direction = uid(dre);
+				//위,아래,오른,왼
+				if (direction == 0)
+				{
+					if (y == 0) continue;
+					if (map[x][y - 2] == 1)
+					{
+						if (direction == beforeDirection)continuos++;
+						else continuos = 0;
+						if (continuos < 5)
+						{
+							--y; map[x][y] = 0;
+							--y; map[x][y] = 0;
+							beforeDirection = direction;
+						}
+					}
+					else y -= 2;
+				}
+				if (direction == 1)
+				{
+					if (y == 48) continue;
+					if (map[x][y + 2] == 1)
+					{
+						if (direction == beforeDirection)continuos++;
+						else continuos = 0;
+						if (continuos < 5)
+						{
+							++y; map[x][y] = 0;
+							++y; map[x][y] = 0;
+							beforeDirection = direction;
+						}
+					}
+					else y += 2;
+				}
+				if (direction == 2)
+				{
+					if (x == 0) continue;
+					if (map[x - 2][y] == 1)
+					{
+						if (direction == beforeDirection)continuos++;
+						else continuos = 0;
+						if (continuos < 5)
+						{
+							--x; map[x][y] = 0;
+							--x; map[x][y] = 0;
+							beforeDirection = direction;
+						}
+					}
+					else x -= 2;
+				}
+				if (direction == 3)
+				{
+					if (x == 48) continue;
+					if (map[x + 2][y] == 1)
+					{
+						if (direction == beforeDirection)continuos++;
+						else continuos = 0;
+						if (continuos < 5)
+						{
+							++x; map[x][y] = 0;
+							++x; map[x][y] = 0;
+							beforeDirection = direction;
+						}
+					}
+					else x += 2;
+				}
+			}
+			cout << "ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n";
+			for (int i = 0; i < SIZE_Y - 1; i++)
+			{
+				for (int j = 0; j < SIZE_X - 1; j++)
+				{
+					cout << map[j][i];
+				}
+				cout << endl;
+			}
+		}
+		else if (buffer == "q")
+			break;
+
+	}
+}

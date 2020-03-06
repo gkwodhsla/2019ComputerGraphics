@@ -1,0 +1,328 @@
+#include "GL/glew.h"
+#include "GL/freeglut.h"
+#include "GL/glm/glm.hpp"
+#include "GL/glm/ext.hpp"
+#include "GL/glm/gtc/matrix_transform.hpp"
+#include <iostream>
+#include "VertexShader.hpp"
+#include "FragShader.hpp"
+#include "ShaderProgram.hpp"
+#include <vector>
+#include<random>
+/*키보드 명령 입력받기
+
+F:도형 그리기 모드 변경(gl_fill or gl_line)
+M:4개의 사각형이 시계반대방향으로 이동하기
+S:멈추기
+C:사각형의 색상바꾸기
+Q:프로그램 종료하기
+*/
+
+std::random_device rd;
+std::default_random_engine dre(rd());
+std::uniform_real_distribution<> urd(0.0, 1.0);
+int windowNumber = 0;
+int percentage = 0;
+bool isTimerOn = false;
+bool isFill = true;
+GLvoid drawScene(GLvoid);
+GLvoid Reshape(int w, int h);
+GLvoid keyBoardEvent(unsigned char key, int x, int y);
+GLvoid updateAndBindVertex();
+GLvoid randomColor();
+GLuint compileShaders();
+GLvoid timerFunc(int);
+GLvoid init();
+
+int WIDTH = 800;
+int HEIGTH = 600;
+const GLfloat RECTSIZE = 0.5;
+GLuint shaderProgramID;
+int count = 0;
+//사각형을 그리려면 2개의 정점을 공유해야한다.
+
+std::vector<std::pair<float, float>> points;
+float firstT[] =
+{
+	-0.7f,0.7f,0.0f,//TOP_LEFT
+	-0.4f,0.7f,0.0f,//TOP_RIGHT
+	-0.4f,0.4f,0.0f,//BOTTOM_RIGHT
+	-0.4f,0.4f,0.0f,//BOTTOM_RIGHT
+	-0.7f,0.4f,0.0f,//BOTTOM_LEFT
+	-0.7f,0.7f,0.0f//TOP_LEFT
+
+};
+float secondT[] =
+{
+	0.4f,0.7f,0.0f,//TOP_LEFT
+	0.7f,0.7f,0.0f,//TOP_RIGHT
+	0.7f,0.4f,0.0f,//BOTTOM_RIGHT
+	0.7f,0.4f,0.0f,//BOTTOM_RIGHT
+	0.4f,0.4f,0.0f,//BOTTOM_LEFT
+	0.4f,0.7f,0.0f//TOP_LEFT
+}; 
+float thirdT[] =
+{
+	-0.7f,-0.4f,0.0f,//TOP_LEFT
+	-0.4f,-0.4f,0.0f,//TOP_RIGHT
+	-0.4f,-0.7f,0.0f,//BOTTOM_RIGHT
+	-0.4f,-0.7f,0.0f,//BOTTOM_RIGHT
+	-0.7f,-0.7f,0.0f,//BOTTOM_LEFT
+	-0.7f,-0.4f,0.0f//TOP_LEFT
+}; 
+float fourthT[] =
+{
+	0.4f,-0.4f,0.0f,//TOP_LEFT
+	0.7f,-0.4f,0.0f,//TOP_RIGHT
+	0.7f,-0.7f,0.0f,//BOTTOM_RIGHT
+	0.7f,-0.7f,0.0f,//BOTTOM_RIGHT
+	0.4f,-0.7f,0.0f,//BOTTOM_LEFT
+	0.4f,-0.4f,0.0f//TOP_LEFT
+};
+
+float firstC[] =
+{
+	   1.0f, 0.0f, 0.0f,  
+	   0.0f, 0.0f, 0.0f,  
+	   0.7f, 0.6f, 0.0f, 
+	   1.0f, 0.0f, 0.0f,  
+	   0.0f, 0.0f, 0.0f,  
+	   0.7f, 0.6f, 0.0f,  
+};
+float secondC[] =
+{
+	   1.0f, 0.0f, 0.0f,
+	   0.0f, 0.0f, 0.0f,
+	   0.7f, 0.6f, 0.0f,
+	   1.0f, 0.0f, 0.0f,
+	   0.0f, 0.0f, 0.0f,
+	   0.7f, 0.6f, 0.0f,
+};
+float thirdC[] =
+{
+	   1.0f, 0.0f, 0.0f,
+	   0.0f, 0.0f, 0.0f,
+	   0.7f, 0.6f, 0.0f,
+	   1.0f, 0.0f, 0.0f,
+	   0.0f, 0.0f, 0.0f,
+	   0.7f, 0.6f, 0.0f,
+};
+float fourthC[] =
+{
+	   1.0f, 0.0f, 0.0f,
+	   0.0f, 0.0f, 0.0f,
+	   0.7f, 0.6f, 0.0f,
+	   1.0f, 0.0f, 0.0f,
+	   0.0f, 0.0f, 0.0f,
+	   0.7f, 0.6f, 0.0f,
+};
+
+std::vector<float*> coordinates;
+std::vector<float*> colors;
+
+unsigned int VAO[4], VBO[4],VBOC[4];
+
+void main(int argc, char** argv)
+{
+	init();
+	
+	//create window
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+	glutInitWindowPosition(0, 0);
+	glutInitWindowSize(WIDTH, HEIGTH);
+	windowNumber = glutCreateWindow("2016182044HJO");
+	//GLEW init
+	glewExperimental = GL_TRUE;
+	if (glewInit() != GLEW_OK)
+	{
+		std::cerr << "Unable to initalize GLEW" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	else
+		std::cout << "GLEW initialized\n";
+
+	shaderProgramID = compileShaders();
+
+	glGenVertexArrays(4, VAO);
+	glGenBuffers(4, VBO);
+	glGenBuffers(4, VBOC);
+
+	updateAndBindVertex();
+
+	glutDisplayFunc(drawScene);
+	glutReshapeFunc(Reshape);//window의 모양이 바뀔때마다 호출될 함수를 등록한다.
+	glutKeyboardFunc(keyBoardEvent);
+	glutTimerFunc(100,timerFunc,1);
+	glutMainLoop();
+
+}
+
+GLvoid drawScene()//glutpostredisplay가 호출되면 DisplayFunc에 등록된 콜백함수가 호출된다.
+{
+	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glUseProgram(shaderProgramID);
+	
+	for (int i = 0; i < 4; ++i)
+	{
+		glBindVertexArray(VAO[i]);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+	}
+	
+	glutSwapBuffers();//더블버퍼모드이기때문에 flush대신에 glutswapbuffers를 호출한다.
+}
+
+GLvoid updateAndBindVertex()
+{
+	for (int i = 0; i < 4; ++i)
+	{
+		glBindVertexArray(VAO[i]);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[i]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(coordinates[i]) * 18, coordinates[i], GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		//첫번째 인덱스, 두번째 무슨 속성나타내는지 3이면 rgb,xyz,4면 rgba,xyzw....
+		glEnableVertexAttribArray(0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBOC[i]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(colors[i])*18, colors[i], GL_STATIC_READ);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(1);
+	}
+}
+
+GLvoid Reshape(int w, int h)
+{
+	glViewport(0, 0, w, h);
+	WIDTH = w;
+	HEIGTH = h;
+}
+
+
+GLvoid keyBoardEvent(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case 'f':
+		if (isFill)
+		{
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);//첫번째 무슨 면에 적용할지 두번째가 모드적용.
+			isFill = false;
+		}
+		else
+		{
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			isFill = true;
+		}
+		break;
+	case 'm':
+		isTimerOn = true;
+		break;
+	case 's':
+		isTimerOn = false;
+		break;
+	case 'c':
+		randomColor();
+		updateAndBindVertex();
+		break;
+	case 'q':
+		exit(0);
+		break;
+	default:
+		break;
+	}
+	glutPostRedisplay();
+}
+
+
+GLuint compileShaders()
+{
+	VertexShader vShader1("vertexSource.txt");
+	vShader1.createAndCompile();
+	FragShader fShader1("FragSource.txt");
+	fShader1.createAndCompile();
+	ShaderProgram ShaderProgram1;
+	ShaderProgram1.attachAndLink({fShader1.retShader(),vShader1.retShader()});
+	return ShaderProgram1.retProgramID();
+}
+
+GLvoid init()
+{
+	coordinates.emplace_back(firstT);
+	coordinates.emplace_back(secondT);
+	coordinates.emplace_back(thirdT);
+	coordinates.emplace_back(fourthT);
+	colors.emplace_back(firstC);
+	colors.emplace_back(secondC);
+	colors.emplace_back(thirdC);
+	colors.emplace_back(fourthC);
+	for (int i = 0; i < 4; ++i)
+		for (int j = 0; j < 18; ++j)
+			colors[i][j] = urd(dre);
+	points.emplace_back(std::make_pair(-0.7f, 0.7f));
+	points.emplace_back(std::make_pair(-0.7f, -0.4f));
+	points.emplace_back(std::make_pair(0.4f, -0.4f));
+	points.emplace_back(std::make_pair(0.4f, 0.7f));
+}
+GLvoid randomColor()
+{
+	for (int i = 0; i < 4; ++i)
+		for (int j = 0; j < 18; ++j)
+			colors[i][j] = urd(dre);
+}
+GLvoid timerFunc(int index)
+{
+	if (isTimerOn)
+	{
+		//parametric representation을 이용해서 반시계방향 이동을 구함.
+		float t;
+		t = float(percentage) / 100;
+		float newX, newY;
+		//first square!
+		newX = (1 - t)*points[count % 4].first + t * points[(count + 1) % 4].first;
+		newY = (1 - t)*points[count % 4].second + t * points[(count + 1) % 4].second;
+		coordinates[0][0] = newX, coordinates[0][1] = newY;
+		coordinates[0][3] = newX + 0.3f, coordinates[0][4] = newY;
+		coordinates[0][6] = newX + 0.3f, coordinates[0][7] = newY - 0.3f;
+		coordinates[0][9] = newX + 0.3f, coordinates[0][10] = newY - 0.3f;
+		coordinates[0][12] = newX, coordinates[0][13] = newY - 0.3f;
+		coordinates[0][15] = newX, coordinates[0][16] = newY;
+		//third square!
+		newX = (1 - t)*points[(count + 1) % 4].first + t * points[(count + 2) % 4].first;
+		newY = (1 - t)*points[(count + 1) % 4].second + t * points[(count + 2) % 4].second;
+		coordinates[2][0] = newX, coordinates[2][1] = newY;
+		coordinates[2][3] = newX + 0.3f, coordinates[2][4] = newY;
+		coordinates[2][6] = newX + 0.3f, coordinates[2][7] = newY - 0.3f;
+		coordinates[2][9] = newX + 0.3f, coordinates[2][10] = newY - 0.3f;
+		coordinates[2][12] = newX, coordinates[2][13] = newY - 0.3f;
+		coordinates[2][15] = newX, coordinates[2][16] = newY;
+		//fourth square!
+		newX = (1 - t)*points[(count + 2) % 4].first + t * points[(count + 3) % 4].first;
+		newY = (1 - t)*points[(count + 2) % 4].second + t * points[(count + 3) % 4].second;
+		coordinates[3][0] = newX, coordinates[3][1] = newY;
+		coordinates[3][3] = newX + 0.3f, coordinates[3][4] = newY;
+		coordinates[3][6] = newX + 0.3f, coordinates[3][7] = newY - 0.3f;
+		coordinates[3][9] = newX + 0.3f, coordinates[3][10] = newY - 0.3f;
+		coordinates[3][12] = newX, coordinates[3][13] = newY - 0.3f;
+		coordinates[3][15] = newX, coordinates[3][16] = newY;
+		//second square!
+		newX = (1 - t)*points[(count + 3) % 4].first + t * points[(count + 4) % 4].first;
+		newY = (1 - t)*points[(count + 3) % 4].second + t * points[(count + 4) % 4].second;
+		coordinates[1][0] = newX, coordinates[1][1] = newY;
+		coordinates[1][3] = newX + 0.3f, coordinates[1][4] = newY;
+		coordinates[1][6] = newX + 0.3f, coordinates[1][7] = newY - 0.3f;
+		coordinates[1][9] = newX + 0.3f, coordinates[1][10] = newY - 0.3f;
+		coordinates[1][12] = newX, coordinates[1][13] = newY - 0.3f;
+		coordinates[1][15] = newX, coordinates[1][16] = newY;
+
+		percentage+=10;
+		updateAndBindVertex();
+		glutPostRedisplay();
+		if (percentage == 100)
+		{
+			++count;
+			percentage = 0;
+		}
+	}
+	glutTimerFunc(100, timerFunc, 1);
+}

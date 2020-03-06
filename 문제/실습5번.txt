@@ -1,0 +1,233 @@
+#include "GL/glew.h"
+#include "GL/freeglut.h"
+#include "GL/glm/glm.hpp"
+#include "GL/glm/ext.hpp"
+#include "GL/glm/gtc/matrix_transform.hpp"
+#include <iostream>
+#include "VertexShader.hpp"
+#include "FragShader.hpp"
+#include "ShaderProgram.hpp"
+#include <vector>
+#include <random>
+#include <cmath>
+#include <memory>
+/*
+VBO는 최소 250000개의 정점을 담고있을수있다.
+Depends on the video card and the amount of video RAM.
+ATI cards with 128 MB of video RAM are limited by the drivers to a maximum of 32 MB per vertex buffer. 
+With multiple buffers the total can easily go beyond 32 MB with no problem, but I haven’t tried to find a cap.
+*/
+
+const int vertexSize = 30;
+const float perDegree = 360 / vertexSize;
+std::random_device rd;
+std::default_random_engine dre(rd());
+std::uniform_real_distribution<> urd(0.0, 1.0);
+int windowNumber = 0;
+int percentage = 0;
+bool isTimerOn = false;
+bool isFill = true;
+GLvoid drawScene(GLvoid);
+GLvoid Reshape(int w, int h);
+GLvoid Mouse(int button, int state, int x, int y);
+GLvoid keyDown(unsigned char ch, int, int);
+GLfloat degreeToRad(GLfloat degree);
+//GLvoid updateAndBindVertex();
+
+GLuint compileShaders();
+GLvoid timerFunc(int);
+GLvoid init();
+
+int WIDTH = 800;
+int HEIGTH = 600;
+
+GLuint shaderProgramID;
+bool isDot = false;
+
+
+
+class Circle
+{
+public:
+	Circle(GLfloat _initX, GLfloat _initY) :initX(_initX), initY(_initY)
+	{
+		vertexes = new float[3 * vertexSize];
+		for (int i = 0; i < vertexSize * 3; i += 3)
+		{
+			vertexes[i] = initX + radius * cos(degreeToRad(float(360 / vertexSize * (i / 3))));
+			vertexes[i + 1] = initY + radius * sin(degreeToRad(float(360 / vertexSize * (i / 3))));
+			vertexes[i + 2] = 0.0;
+		}
+		glGenVertexArrays(1, &VAO);
+		glGenBuffers(1, &VBO);
+		glBindVertexArray(VAO);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 3 * vertexSize, vertexes, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+	}
+	~Circle()
+	{
+		delete[] vertexes;
+		glDeleteBuffers(1, &VBO);
+		glDeleteVertexArrays(1, &VAO);
+		std::cout << "Object has been destroyed.\n";
+	}
+	void draw()
+	{
+		glBindVertexArray(VAO);
+		if (isDot)
+		{
+			glPointSize(3);
+			glDrawArrays(GL_POINTS, 0, vertexSize);
+		}
+		else
+			glDrawArrays(GL_LINE_LOOP, 0, vertexSize);
+	}
+	bool update()
+	{
+		radius += 0.01;
+		if (radius >= maxRadius)
+		{
+			return true;
+		}
+		for (int i = 0; i < vertexSize * 3; i += 3)
+		{
+			vertexes[i] = initX + radius * cos(degreeToRad(float(360 / vertexSize * (i / 3))));
+			vertexes[i + 1] = initY + radius * sin(degreeToRad(float(360 / vertexSize * (i / 3))));
+			vertexes[i + 2] = 0.0;
+		}
+
+		glBindVertexArray(VAO);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 3 * vertexSize, vertexes, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+		return false;
+	}
+private:
+	unsigned int VBO;
+	unsigned int VAO;
+	float *vertexes;
+	GLfloat initX;
+	GLfloat initY;
+	GLfloat radius;
+	static GLfloat initRadius;
+	static GLfloat maxRadius;
+};
+
+GLfloat Circle::initRadius = 0.1;
+GLfloat Circle::maxRadius = 0.4;
+
+std::vector<Circle*> circles;
+
+void main(int argc, char** argv)
+{
+	//create window
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+	glutInitWindowPosition(0, 0);
+	glutInitWindowSize(WIDTH, HEIGTH);
+	windowNumber = glutCreateWindow("2016182044HJO");
+	//GLEW init
+	glewExperimental = GL_TRUE;
+	if (glewInit() != GLEW_OK)
+	{
+		std::cerr << "Unable to initalize GLEW" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	else
+		std::cout << "GLEW initialized\n";
+
+	shaderProgramID = compileShaders();
+
+
+
+	glutDisplayFunc(drawScene);
+	glutReshapeFunc(Reshape);//window의 모양이 바뀔때마다 호출될 함수를 등록한다.
+	glutMouseFunc(Mouse);
+	glutKeyboardFunc(keyDown);
+	glutTimerFunc(100, timerFunc, 1);
+	glutMainLoop();
+
+}
+
+GLvoid drawScene()//glutpostredisplay가 호출되면 DisplayFunc에 등록된 콜백함수가 호출된다.
+{
+	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glUseProgram(shaderProgramID);
+
+	
+	for (int i = 0; i < circles.size(); ++i)
+	{
+		circles[i]->draw();
+	}
+	//GL_LINES,GL_LINE_LOOP,GL_LINE_STRIP
+	//두 선을 그리고 완전히 잇는선 그리고 마지막은 잇지 않는 선 그린다.
+	glutSwapBuffers();//더블버퍼모드이기때문에 flush대신에 glutswapbuffers를 호출한다.
+}
+
+GLvoid Reshape(int w, int h)
+{
+	glViewport(0, 0, w, h);
+	WIDTH = w;
+	HEIGTH = h;
+}
+
+
+GLvoid Mouse(int button, int state, int x, int y)
+{
+	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+	{
+		auto mappedX = (GLfloat(x) / (WIDTH / 2)) - 1.0;
+		auto mappedY = -((GLfloat(y) / (HEIGTH / 2)) - 1.0);
+		circles.emplace_back(new Circle(mappedX, mappedY));
+		//x,y를 init포지션으로 잡고 이를위한 타이머를 하나 만들어줍니다.
+	}
+}
+
+GLuint compileShaders()
+{
+	VertexShader vShader1("vertexSource.txt");
+	vShader1.createAndCompile();
+	FragShader fShader1("FragSource.txt");
+	fShader1.createAndCompile();
+	ShaderProgram ShaderProgram1;
+	ShaderProgram1.attachAndLink({ fShader1.retShader(),vShader1.retShader() });
+	return ShaderProgram1.retProgramID();
+}
+GLvoid keyDown(unsigned char ch, int, int)
+{
+	switch (ch)
+	{
+	case '1':
+		isDot = false;
+		break;
+	case '2':
+		isDot = true;
+		break;
+	default:
+		std::cout << "wrong input.....\n";
+	}
+	glutPostRedisplay();
+}
+
+GLvoid timerFunc(int index)
+{
+	for (int i = 0; i < circles.size(); ++i)
+	{
+		if (circles[i]->update())
+		{
+			delete circles.front();
+			circles.erase(circles.begin());
+		}
+	}
+	glutTimerFunc(100, timerFunc, 1);
+	glutPostRedisplay();
+}
+GLfloat degreeToRad(GLfloat degree)
+{
+	return (3.14 / 180)*degree;
+}
+

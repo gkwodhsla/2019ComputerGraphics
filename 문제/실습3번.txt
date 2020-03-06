@@ -1,0 +1,279 @@
+#include "GL/glew.h"
+#include "GL/freeglut.h"
+#include "GL/glm/glm.hpp"
+#include "GL/glm/ext.hpp"
+#include "GL/glm/gtc/matrix_transform.hpp"
+#include <iostream>
+#include "VertexShader.hpp"
+#include "FragShader.hpp"
+#include "ShaderProgram.hpp"
+//화면 중앙에 사각형을 그린다
+//마우스를 클릭하여 사각형 클릭시 사각형 색바꾸고 윈도클릭시 윈도 컬러 바꾼다.
+//glrectf 함수를써서 사각형을 그린다.
+//glcolor3f를 glrect호출 직전에 호출한다.
+int windowNumber = 0;
+bool isTimerOn = false;
+GLvoid drawScene(GLvoid);
+GLvoid Reshape(int w, int h);
+GLuint compileShaders();
+GLvoid MouseAct(int,int,int,int);
+int WIDTH = 800;
+int HEIGTH = 600;
+const GLfloat RECTSIZE = 0.5;
+GLuint shaderProgramID;
+int count = 0;
+float firstT[] =
+{
+	   -1.0f, 0.3f, 0.0f,  // left 
+	   -0.4f, 0.3f, 0.0f,  // right
+	   -0.7f, 0.6f, 0.0f,  // top 
+};
+float secondT[] =
+{
+	   0.4f, 0.3f, 0.0f,  // left 
+	   1.0f, 0.3f, 0.0f,  // right
+	   0.7f, 0.6f, 0.0f,  // top 
+}; 
+float thirdT[] =
+{
+	   -1.0f, -1.0f, 0.0f,  // left 
+	   -0.4f, -1.0f, 0.0f,  //right
+	   -0.7f, -0.7f, 0.0f,  // top 
+}; 
+float fourthT[] =
+{
+	   0.4f, -0.3f, 0.0f,  // left 
+	   1.0f, -0.3f, 0.0f,  // right
+	   0.7f, 0.0f, 0.0f,  // top 
+};
+
+float firstC[] =
+{
+	   1.0f, 0.0f, 0.0f,  // left 
+	   0.0f, 0.0f, 0.0f,  // right
+	   0.7f, 0.6f, 0.0f,  // top 
+};
+float secondC[] =
+{
+	   0.0f, 1.0f, 0.0f,  // left 
+	   0.0f, 1.0f, 0.0f,  // right
+	   0.0f, 1.0f, 0.0f,  // top 
+};
+float thirdC[] =
+{
+	   1.0f, 1.0f, 0.2f,  // left 
+	   0.4f, 1.0f, 0.0f,  //right
+	   0.7f, 0.7f, 0.0f,  // top 
+};
+float fourthC[] =
+{
+	   0.4f, 0.8f, 0.0f,  // left 
+	   1.0f, 0.8f, 0.1f,  // right
+	   0.7f, 0.0f, 0.0f,  // top 
+};
+unsigned int VAO[4], VBO[4],VBOC[4];
+void main(int argc, char** argv)
+{
+	//create window
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+	glutInitWindowPosition(0, 0);
+	glutInitWindowSize(WIDTH, HEIGTH);
+	windowNumber = glutCreateWindow("2016182044HJO");
+	//GLEW init
+	glewExperimental = GL_TRUE;
+	if (glewInit() != GLEW_OK)
+	{
+		std::cerr << "Unable to initalize GLEW" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	else
+		std::cout << "GLEW initialized\n";
+
+	shaderProgramID = compileShaders();
+
+	glGenVertexArrays(4, VAO);
+	glGenBuffers(4, VBO);
+	glGenBuffers(4, VBOC);
+	{
+		glBindVertexArray(VAO[0]);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(firstT), firstT, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBOC[0]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(firstC), firstC, GL_STATIC_READ);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(1);
+	}
+
+	{
+		glBindVertexArray(VAO[1]);	// note that we bind to a different VAO now
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);	// and a different VBO
+		glBufferData(GL_ARRAY_BUFFER, sizeof(secondT), secondT, GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); // because the vertex data is tightly packed we can also specify 0 as the vertex attribute's stride to let OpenGL figure it out
+		glEnableVertexAttribArray(0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBOC[1]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(secondC), secondC, GL_STATIC_READ);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(1);
+
+	}
+
+	{
+		glBindVertexArray(VAO[2]);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(thirdT), thirdT, GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBOC[2]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(thirdC), thirdC, GL_STATIC_READ);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(1);
+	}
+
+	{
+		glBindVertexArray(VAO[3]);	// note that we bind to a different VAO now
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[3]);	// and a different VBO
+		glBufferData(GL_ARRAY_BUFFER, sizeof(fourthT), fourthT, GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0); // because the vertex data is tightly packed we can also specify 0 as the vertex attribute's stride to let OpenGL figure it out
+		glEnableVertexAttribArray(0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBOC[3]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(fourthT), fourthT, GL_STATIC_READ);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(1);
+	}
+
+	//glm::mat4 myMatrix = glm::translate(glm::mat4(1), glm::vec3(10.0f, 0.0f, 0.0f));이동변환.
+	//glm::mat4 myMatrix = glm::scale(glm::mat4(1), glm::vec3(2.0f, 2.0f, 2.0f)); 신축
+	//glm::mat4 myMatrix = glm::rotate(glm::mat4(1), glm::radians(90.0f), glm::vec3(0.0, 1.0, 0.0));y축회전변환.
+	glutDisplayFunc(drawScene);
+	glutReshapeFunc(Reshape);//window의 모양이 바뀔때마다 호출될 함수를 등록한다.
+	glutMouseFunc(MouseAct);
+	glutMainLoop();
+
+}
+GLvoid updateCoords(int index)
+{
+	glBindVertexArray(VAO[index]);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[index]);
+	if (index == 0)
+	{
+		glBufferData(GL_ARRAY_BUFFER, sizeof(firstT), firstT, GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+	}
+	else if (index == 1)
+	{
+		glBufferData(GL_ARRAY_BUFFER, sizeof(secondT), secondT, GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+	}
+	else if (index == 2)
+	{
+		glBufferData(GL_ARRAY_BUFFER, sizeof(thirdT), thirdT, GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+	}
+	else if (index == 3)
+	{
+		glBufferData(GL_ARRAY_BUFFER, sizeof(fourthT), fourthT, GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+	}
+}
+
+
+GLvoid drawScene()//glutpostredisplay가 호출되면 DisplayFunc에 등록된 콜백함수가 호출된다.
+{
+	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glUseProgram(shaderProgramID);
+	
+
+	for (int i = 0; i < 4; ++i)
+	{
+		glBindVertexArray(VAO[i]);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+	}
+	
+	glutSwapBuffers();//더블버퍼모드이기때문에 flush대신에 glutswapbuffers를 호출한다.
+}
+
+
+GLvoid Reshape(int w, int h)
+{
+	glViewport(0, 0, w, h);
+	WIDTH = w;
+	HEIGTH = h;
+}
+
+
+GLuint compileShaders()
+{
+	VertexShader vShader1("vertexSource.txt");
+	vShader1.createAndCompile();
+	FragShader fShader1("FragSource.txt");
+	fShader1.createAndCompile();
+	ShaderProgram ShaderProgram1;
+	ShaderProgram1.attachAndLink({fShader1.retShader(),vShader1.retShader()});
+	return ShaderProgram1.retProgramID();
+}
+
+
+GLvoid MouseAct(int button, int state, int x, int y)
+{
+	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+	{
+		//좌표 매핑한법:윈도우의 좌표는 x는 0~WIDTH y는 0~HEIGTH까진데 gl좌표는 -1.0f~1.0f의 정방 좌표를가짐.
+		//우선 윈도 좌표 (x,y)에 각각 WIDTH / 2 , HEIGTH / 2 해주면 범위를 0.0f~2.0f로 정규화한 좌표가 나옴.
+		//근데 아까 gl좌표계가 -1.0~1.0이라고 하였으므로 1.0을 빼줌. 
+		//그리고 y좌표는 윈도 좌표계와 gl 좌표계가 방향이 반대이므로 마지막에 -를 붙여줌.
+		auto mappedX = (GLfloat(x) / (WIDTH / 2)) - 1.0;
+		auto mappedY = -((GLfloat(y) / (HEIGTH / 2)) - 1.0);
+		
+		if (count % 4 == 0)
+		{
+			firstT[0] = mappedX - 0.3;
+			firstT[1] = mappedY - 0.3;
+			firstT[3] = mappedX + 0.3;
+			firstT[4] = mappedY - 0.3;
+			firstT[6] = mappedX;
+			firstT[7] = mappedY;
+		}
+		else if (count % 4 == 1)
+		{
+			secondT[0] = mappedX - 0.3;
+			secondT[1] = mappedY - 0.3;
+			secondT[3] = mappedX + 0.3;
+			secondT[4] = mappedY - 0.3;
+			secondT[6] = mappedX;
+			secondT[7] = mappedY;
+		}
+		else if (count % 4 == 2)
+		{
+			thirdT[0] = mappedX - 0.3;
+			thirdT[1] = mappedY - 0.3;
+			thirdT[3] = mappedX + 0.3;
+			thirdT[4] = mappedY - 0.3;
+			thirdT[6] = mappedX;
+			thirdT[7] = mappedY;
+		}
+		else if (count % 4 == 3)
+		{
+			fourthT[0] = mappedX - 0.3;
+			fourthT[1] = mappedY - 0.3;
+			fourthT[3] = mappedX + 0.3;
+			fourthT[4] = mappedY - 0.3;
+			fourthT[6] = mappedX;
+			fourthT[7] = mappedY;
+		}
+		updateCoords(count%4);
+		count++;
+		glutPostRedisplay();
+	}
+}

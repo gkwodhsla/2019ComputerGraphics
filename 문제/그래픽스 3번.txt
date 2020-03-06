@@ -1,0 +1,66 @@
+#include<iostream>
+#include<fstream>
+#include<string>
+#include<sstream>
+#include<algorithm>
+#include<vector>
+using namespace std;
+
+int main()
+{
+	ifstream f;
+	f.open("test.txt");
+	string lines[10];
+	for (auto i = 0; i < 10; ++i)
+		getline(f, lines[i]);
+	int wCount=0;
+	int numCount = 0;
+	for (auto i = 0; i < 10; ++i)
+		wCount += count(lines[i].begin(), lines[i].end(), ' ')+1;//+1 한건 마지막 문자 포함.
+	
+	//숫자를 찾아야하는데 특수문자로 이어져있는 숫자는 하나로 퉁친다.
+	//stringstream을 이용해 문자열을 토큰화한다.
+	vector<string> numList;
+	for (int i = 0; i < 10; ++i)
+	{
+		istringstream is(lines[i]);
+		string temp;
+		while (is >> temp)
+		{
+			int numSize = 0;
+			for (int i = 0; i < temp.size(); ++i)
+			{
+				if (int(temp[i]) >= 48 && int(temp[i]) <= 57)
+				{
+					++numSize;
+				}
+				else if ((int(temp[i+1]) >= 48 && int(temp[i+1]) <= 57)&&
+					(numSize > 0) && int(temp[i] >= 21) && int(temp[i] <= 47))//특수문자앞뒤에 숫자가 연결되어있어야 인정.
+				{
+					++numSize;
+				}
+				else
+				{
+					if (numSize > 0)
+					{
+						numList.emplace_back(temp.substr(i - numSize, numSize));
+						numSize = 0;
+					}
+				}
+			}
+			if (numSize > 0)
+			{
+				numList.emplace_back(temp.substr(temp.size() - numSize, numSize));
+				numSize = 0;
+			}
+		}
+	}
+
+	cout << "word Count:" << wCount << endl;
+	for (int i = 0; i < numList.size(); ++i)
+	{
+		cout << numList[i] << " ";
+	}
+	cout << "\tTotal:" << numList.size();
+	f.close();
+}

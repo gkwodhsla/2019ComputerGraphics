@@ -1,0 +1,296 @@
+#include "GL/glew.h"
+#include "GL/freeglut.h"
+#include "GL/glm/glm.hpp"
+#include "GL/glm/ext.hpp"
+#include "GL/glm/gtc/matrix_transform.hpp"
+#include <iostream>
+#include "VertexShader.hpp"
+#include "FragShader.hpp"
+#include "ShaderProgram.hpp"
+#include <vector>
+#include <random>
+#include <cmath>
+#include <memory>
+/*
+VBO는 최소 250000개의 정점을 담고있을수있다.
+Depends on the video card and the amount of video RAM.
+ATI cards with 128 MB of video RAM are limited by the drivers to a maximum of 32 MB per vertex buffer. 
+With multiple buffers the total can easily go beyond 32 MB with no problem, but I haven’t tried to find a cap.
+*/
+
+const int vertexSize = 9;
+std::random_device rd;
+std::default_random_engine dre(rd());
+std::uniform_real_distribution<> urd(-0.7, 0.7);
+std::uniform_int_distribution<> uid(1, 10);
+int windowNumber = 0;
+int percentage = 0;
+bool isTimerOn = false;
+bool isFill = true;
+GLvoid drawScene(GLvoid);
+GLvoid Reshape(int w, int h);
+
+GLfloat degreeToRad(GLfloat degree);
+
+
+GLuint compileShaders();
+GLvoid timerFunc(int);
+
+
+int WIDTH = 800;
+int HEIGTH = 600;
+
+GLuint shaderProgramID;
+bool isDot = false;
+
+
+
+class Triangle
+{
+public:
+	Triangle(GLfloat _initPos) :initPos(_initPos), i(0), location(0)
+	{
+		vertexes = new float[vertexSize];
+		speed = uid(dre);
+		destX = -1.0f;
+		destY = urd(dre);
+		startX = _initPos;
+		startY = -1.0f;
+
+		vertexes[0] = _initPos;
+		vertexes[1] = -1.0f;
+		vertexes[2] = 0.0f;
+		//여기까지 left.
+		vertexes[3] = _initPos + triangleWidth;
+		vertexes[4] = -1.0f;
+		vertexes[5] = 0.0f;
+		//여기까지 right
+		vertexes[6] = _initPos + triangleWidth / 2;
+		vertexes[7] = -1.0f+triangleHeigth;
+		vertexes[8] = 0.0f;
+		//여기까지 top
+
+		glGenVertexArrays(1, &VAO);
+		glGenBuffers(1, &VBO);
+		glBindVertexArray(VAO);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(float)  * vertexSize, vertexes, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+	}
+	~Triangle()
+	{
+		delete[] vertexes;
+		glDeleteBuffers(1, &VBO);
+		glDeleteVertexArrays(1, &VAO);
+		std::cout << "Object has been destroyed.\n";
+	}
+	void draw()
+	{
+		glBindVertexArray(VAO);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+	}
+	void update()
+	{
+		if (i >= 100)
+		{
+			i = 0;
+			if (location == 0)
+			{
+				location = 1;
+				startX = vertexes[0];
+				startY = vertexes[1];
+				destX = urd(dre);
+				destY = 1.0f-triangleWidth;
+				return;
+			}
+			else if (location == 1)
+			{
+				location = 2;
+				startX = vertexes[0];
+				startY = vertexes[1];
+				destX = 1.0f-triangleWidth;
+				destY = urd(dre);
+			}
+			else if (location == 2)
+			{
+				location = 3;
+				startX = vertexes[0];
+				startY = vertexes[1];
+				destX = urd(dre);
+				destY = -1.0f;
+			}
+			else if (location == 3)
+			{
+				location = 0;
+				startX = vertexes[0];
+				startY = vertexes[1];
+				destX = -1.0f;
+				destY = urd(dre);
+			}
+		}
+		i += speed;
+		float newX, newY;
+		float t = i / 100;
+		newX = (1 - t)*startX + t * destX;
+		newY = (1 - t)*startY + t * destY;
+
+
+		if (location == 0)
+		{
+			vertexes[0] = newX;
+			vertexes[1] = newY;
+			//여기까지 left.
+			vertexes[3] = newX + triangleWidth;
+			vertexes[4] = newY;
+			//여기까지 right
+			vertexes[6] = newX + triangleWidth / 2;
+			vertexes[7] = newY + triangleHeigth;
+		}
+		else if (location == 1)
+		{
+			vertexes[0] = newX;
+			vertexes[1] = newY;
+			//여기까지 left.
+			vertexes[3] = newX + triangleHeigth;
+			vertexes[4] = newY + triangleWidth / 2;
+			//여기까지 right
+			vertexes[6] = newX;
+			vertexes[7] = newY + triangleWidth;
+		}
+		else if (location == 2)
+		{
+			vertexes[0] = newX;
+			vertexes[1] = newY;
+			//여기까지 left.
+			vertexes[3] = newX + triangleWidth;
+			vertexes[4] = newY;
+			//여기까지 right
+			vertexes[6] = newX + triangleWidth / 2;
+			vertexes[7] = newY - triangleHeigth;
+		}
+		else if (location == 3)
+		{
+			vertexes[0] = newX;
+			vertexes[1] = newY;
+			//여기까지 left.
+			vertexes[3] = newX - triangleHeigth;
+			vertexes[4] = newY + triangleWidth / 2;
+			//여기까지 right
+			vertexes[6] = newX;
+			vertexes[7] = newY + triangleWidth;
+		}
+
+
+		glBindVertexArray(VAO);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(float)  * vertexSize, vertexes, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+	}
+private:
+	unsigned int VBO;
+	unsigned int VAO;
+	float *vertexes;
+	GLfloat initPos;
+	int location;
+	//0:bottom,1:left,2:top,3:right
+	float i;
+	float speed;
+	GLfloat startX;
+	GLfloat startY;
+	GLfloat destX;
+	GLfloat destY;
+	static GLfloat triangleHeigth;
+	static GLfloat triangleWidth;
+};
+
+GLfloat Triangle::triangleHeigth = 0.2f;
+GLfloat Triangle::triangleWidth = 0.1f;
+
+std::vector<Triangle*> triangles;
+
+void main(int argc, char** argv)
+{
+	//create window
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+	glutInitWindowPosition(0, 0);
+	glutInitWindowSize(WIDTH, HEIGTH);
+	windowNumber = glutCreateWindow("2016182044HJO");
+	//GLEW init
+	glewExperimental = GL_TRUE;
+	if (glewInit() != GLEW_OK)
+	{
+		std::cerr << "Unable to initalize GLEW" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	else
+		std::cout << "GLEW initialized\n";
+
+	shaderProgramID = compileShaders();
+
+
+	for (int i = 0; i < 10; ++i)
+	{
+		triangles.emplace_back(new Triangle(urd(dre)));
+	}
+	glutDisplayFunc(drawScene);
+	glutReshapeFunc(Reshape);//window의 모양이 바뀔때마다 호출될 함수를 등록한다.
+	glutTimerFunc(100, timerFunc, 1);
+	glutMainLoop();
+
+}
+
+GLvoid drawScene()//glutpostredisplay가 호출되면 DisplayFunc에 등록된 콜백함수가 호출된다.
+{
+	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glUseProgram(shaderProgramID);
+
+	
+	for (int i = 0; i < triangles.size(); ++i)
+	{
+		triangles[i]->draw();
+	}
+	//GL_LINES,GL_LINE_LOOP,GL_LINE_STRIP
+	//두 선을 그리고 완전히 잇는선 그리고 마지막은 잇지 않는 선 그린다.
+	glutSwapBuffers();//더블버퍼모드이기때문에 flush대신에 glutswapbuffers를 호출한다.
+}
+
+GLvoid Reshape(int w, int h)
+{
+	glViewport(0, 0, w, h);
+	WIDTH = w;
+	HEIGTH = h;
+}
+
+
+
+
+GLuint compileShaders()
+{
+	VertexShader vShader1("vertexSource.txt");
+	vShader1.createAndCompile();
+	FragShader fShader1("FragSource.txt");
+	fShader1.createAndCompile();
+	ShaderProgram ShaderProgram1;
+	ShaderProgram1.attachAndLink({ fShader1.retShader(),vShader1.retShader() });
+	return ShaderProgram1.retProgramID();
+}
+
+
+GLvoid timerFunc(int index)
+{
+	for (int i = 0; i < triangles.size(); ++i)
+	{
+		triangles[i]->update();
+	}
+	glutTimerFunc(100, timerFunc, 1);
+	glutPostRedisplay();
+}
+GLfloat degreeToRad(GLfloat degree)
+{
+	return (3.14 / 180)*degree;
+}
+

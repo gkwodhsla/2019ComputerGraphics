@@ -1,0 +1,137 @@
+#include<iostream>
+#include<vector>
+#include<random>
+#include<cmath>
+
+using namespace std;
+
+void printResult(vector<vector<int>>& _result)
+{
+	for (int i = 0; i < 3; ++i)
+	{
+		for (int j = 0; j < 3; ++j)
+		{
+			cout << _result[i][j];
+		}
+		cout << "\n";
+	}
+}
+void printDet(vector<vector<int>>& matrix1)
+{
+	int e1 = matrix1[0][0] * pow(-1, 0)*((matrix1[1][1] * matrix1[2][2]) - (matrix1[1][2] * matrix1[2][1]));
+	int e2 = matrix1[0][1] * pow(-1, 1)*((matrix1[1][0] * matrix1[2][2]) - (matrix1[1][2] * matrix1[2][0]));
+	int e3 = matrix1[0][2] * pow(-1, 2)*((matrix1[1][0] * matrix1[2][1]) - (matrix1[1][1] * matrix1[2][0]));
+	for (int i = 0; i < 3; ++i)
+	{
+		for (int j = 0; j < 3; ++j)
+		{
+			cout << matrix1[i][j];
+		}
+		cout << endl;
+	}
+	cout << "=" << e1 + e2 + e3 << endl;
+}
+int main()
+{
+	vector<vector<int>> matrix1, matrix2, result;
+	matrix1.resize(3);
+	matrix2.resize(3);
+	result.resize(3);
+	random_device rd;
+	default_random_engine dre(rd());
+	uniform_int_distribution<> a(0, 1);
+	for (int i = 0; i < 3; ++i)
+	{
+		for (int j = 0; j < 3; ++j)
+		{
+			matrix1[i].emplace_back(a(dre));
+			matrix2[i].emplace_back(a(dre));
+			result[i].resize(3);
+		}
+	}
+	for (int i = 0; i < 3; ++i)
+	{
+		for (int j = 0; j < 3; ++j)
+		{
+			cout << matrix1[i][j];
+		}
+		cout << "\t";
+		for (int j = 0; j < 3; ++j)
+		{
+			cout << matrix2[i][j];
+		}
+		cout << endl;
+	}
+	char command;
+
+	while (cin >> command)
+	{
+		if (command == 'm' || command == 'M')
+		{
+			int sum = 0;
+			for (int i = 0; i < 3; ++i)
+			{
+				for (int j = 0; j < 3; ++j)
+				{
+					for (int k = 0; k < 3; ++k)
+					{
+						sum += matrix1[i][k] * matrix2[k][j];
+					}
+					result[i][j] = sum;
+					sum = 0;
+				}
+			}
+			printResult(result);
+		}
+		else if (command == 'A' || command == 'a')
+		{
+			for (int i = 0; i < 3; ++i)
+			{
+				for (int j = 0; j < 3; ++j)
+				{
+					result[i][j] = matrix1[i][j] + matrix2[i][j];
+				}
+			}
+			printResult(result);
+		}
+		else if (command == 'D' || command == 'd')
+		{
+			for (int i = 0; i < 3; ++i)
+			{
+				for (int j = 0; j < 3; ++j)
+				{
+					result[i][j] = matrix1[i][j] - matrix2[i][j];
+				}
+			}
+			printResult(result);
+		}
+		else if (command == 'R' || command == 'r')
+		{
+			//기준을 1행으로 잡는다.
+			printDet(matrix1);
+		}
+		else if (command == 'H' || command == 'h')
+		{
+			//문제에서 4행 or 4열을 기준으로 삼을것을 요구한다.
+			//문제에서 짜피 4행4열값만 1로 설정하므로 4x4에 있는 원소 기준삼으면 결국 명령어R 과 동일.
+			vector<vector<int>> temp(matrix1);
+			temp.resize(4);
+			for (int i = 0; i < 4; ++i)
+				temp[i].resize(4);
+			temp[3][3] = 1;
+			for (int i = 0; i < 4; ++i)
+			{
+				for (int j = 0; j < 4; ++j)
+				{
+					cout << temp[i][j];
+				}
+				cout << endl;
+			}
+			printDet(matrix1);
+		}
+		else if (command == 'Q' || command == 'q')
+		{
+			break;
+		}
+	}
+}

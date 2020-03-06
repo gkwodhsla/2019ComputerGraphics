@@ -1,0 +1,606 @@
+﻿#include "GL/glew.h"
+#include "GL/freeglut.h"
+#include "glm/glm/glm.hpp"
+#include "glm/glm/ext.hpp"
+#include "glm/glm/gtc/matrix_transform.hpp"
+#include <iostream>
+#include "VertexShader.hpp"
+#include "FragShader.hpp"
+#include "ShaderProgram.hpp"
+#include <vector>
+#include <random>
+#include <ctime>
+#include <memory>
+#include <functional>
+#define _CRT_SECURE_NO_WARNINGS
+
+/*
+VBO??理쒖냼 250000媛쒖쓽 ?뺤젏???닿퀬?덉쓣?섏엳??
+Depends on the video card and the amount of video RAM.
+ATI cards with 128 MB of video RAM are limited by the drivers to a maximum of 32 MB per vertex buffer.
+With multiple buffers the total can easily go beyond 32 MB with no problem, but I haven?셳 tried to find a cap.
+*/
+
+int windowNumber = 0;
+int percentage = 0;
+
+int indexFrame = 0;
+int curHour = 0;
+int curMin = 0;
+int curSec = 0;
+int numbers[6];
+int indexOfCamera = 21;
+
+bool isTimerOn1 = false;
+bool isTimerOn2 = false;
+bool zoomFlag = false;
+bool isZooming = false;
+bool isWire[48];
+bool isYinc = true;
+bool isOrtho = true;
+bool isPyramid = false;
+bool isRotation = false;
+bool isFrontOpen = false;
+bool isUpRotate = true;
+
+float step = 3.5f;
+float cameraZpos = 5.0f;
+float cameraXpos = 0.0f;
+float cameraYpos = 0.0f;
+float yradius = 0.0f;
+float radius = 0.0f;
+float xradius = 0.0f;
+float zSclae = 0.0f;
+const int vertexSize = 30;
+const float perDegree = 360 / vertexSize;
+
+
+GLvoid drawScene(GLvoid);
+GLvoid Reshape(int w, int h);
+GLvoid keyBoardEvent(unsigned char key, int x, int y);
+GLvoid timerFunc(int);
+GLvoid initMatrix();
+
+GLuint compileShaders();
+
+int WIDTH = 800;
+int HEIGTH = 600;
+
+GLuint shaderProgramID;
+
+GLUquadricObj *qobj;
+
+auto transMatrix = glm::mat4(1.0f);
+auto viewMatrix = glm::mat4(1.0f);
+auto projectionMatrix = glm::mat4(1.0f);
+
+float cube[] =
+{
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,//아랫면
+	-1.0f,1.0f,1.0f,
+	-1.0f,-1.0f,1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,1.0f,-1.0f,
+	-1.0f,1.0f,1.0f,//왼쪽옆면
+	1.0f,1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,1.0f,1.0f,
+	1.0f,1.0f,-1.0f,//오른쪽옆면
+	-1.0f,1.0f,1.0f,//여기랑 56
+	-1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,1.0f,1.0f,//여기 x축변환! 68
+	-1.0f,1.0f,1.0f,//정면
+	-1.0f,1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f,1.0f,-1.0f,
+	-1.0f,1.0f,-1.0f,//뒷면
+	-1.0f,1.0f,-1.0f,
+	-1.0f,1.0f,1.0f,
+	1.0f,1.0f,1.0f,
+	1.0f,1.0f,1.0f,
+	1.0f,1.0f,-1.0f,
+	-1.0f,1.0f,-1.0f//윗면
+
+};
+float color[] =
+{
+	 0.583f,  0.771f,  0.014f,
+	0.609f,  0.115f,  0.436f,
+	0.327f,  0.483f,  0.844f,
+	0.822f,  0.569f,  0.201f,
+	0.435f,  0.602f,  0.223f,
+	0.310f,  0.747f,  0.185f,
+	0.597f,  0.770f,  0.761f,
+	0.559f,  0.436f,  0.730f,
+	0.359f,  0.583f,  0.152f,
+	0.483f,  0.596f,  0.789f,
+	0.559f,  0.861f,  0.639f,
+	0.195f,  0.548f,  0.859f,
+	0.014f,  0.184f,  0.576f,
+	0.771f,  0.328f,  0.970f,
+	0.406f,  0.615f,  0.116f,
+	0.676f,  0.977f,  0.133f,
+	0.971f,  0.572f,  0.833f,
+	0.140f,  0.616f,  0.489f,
+	0.997f,  0.513f,  0.064f,
+	0.945f,  0.719f,  0.592f,
+	0.543f,  0.021f,  0.978f,
+	0.279f,  0.317f,  0.505f,
+	0.167f,  0.620f,  0.077f,
+	0.347f,  0.857f,  0.137f,
+	0.055f,  0.953f,  0.042f,
+	0.714f,  0.505f,  0.345f,
+	0.783f,  0.290f,  0.734f,
+	0.722f,  0.645f,  0.174f,
+	0.302f,  0.455f,  0.848f,
+	0.225f,  0.587f,  0.040f,
+	0.517f,  0.713f,  0.338f,
+	0.053f,  0.959f,  0.120f,
+	0.393f,  0.621f,  0.362f,
+	0.673f,  0.211f,  0.457f,
+	0.820f,  0.883f,  0.371f,
+	0.982f,  0.099f,  0.879f
+
+};
+
+float pyramid[] =
+{
+	-1.0f,-1.0f,1.0f,//2
+	1.0f,-1.0f,1.0f,//5
+	1.0f,-1.0f,-1.0f,//8
+	1.0f,-1.0f,-1.0f,//11
+	-1.0f,-1.0f,-1.0f,//14
+	-1.0f,-1.0f,1.0f,//여기까지 밑면 17
+	-1.0f,-1.0f,-1.0f,//20
+	1.0f,-1.0f,-1.0f,//23
+	0.0f,1.0f,0.0f,//여기까지 앞면26
+	-1.0f,-1.0f,1.0f,//29
+	1.0f,-1.0f,1.0f,//32
+	0.0f,1.0f,0.0f,//여기까지 뒷면//35
+	1.0f,-1.0f,-1.0f,//38
+	1.0f,-1.0f,1.0f,//41
+	0.0f,1.0f,0.0f,//여기까지 오른면//44
+	-1.0f,-1.0f,-1.0f,//47
+	-1.0f,-1.0f,1.0f,//50
+	0.0f,1.0f,0.0f,//여기까지 왼면//53
+
+};
+float pColor[] =
+{
+	-1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,1.0f,//여기까지 밑면
+	0.0f,1.0f,0.0f,
+	0.0f,1.0f,0.0f,
+	0.0f,1.0f,0.0f,//여기까지 앞면
+	0.0f,0.0f,1.0f,
+	0.0f,0.0f,1.0f,
+	0.0f,0.0f,1.0f,//여기까지 앞면
+	1.0f,1.0f,0.0f,
+	1.0f,1.0f,0.0f,
+	1.0f,1.0f,0.0f,//여기까지 앞면
+	0.0f,1.0f,1.0f,
+	0.0f,1.0f,1.0f,
+	0.0f,1.0f,1.0f,//여기까지 앞면
+};
+
+unsigned int VBO[2], VAO[2], VBOC[2];
+
+void main(int argc, char** argv)
+{
+	//create window
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+	glutInitWindowPosition(0, 0);
+	glutInitWindowSize(WIDTH, HEIGTH);
+	windowNumber = glutCreateWindow("2016182044HJO");
+	//GLEW init
+	glewExperimental = GL_TRUE;
+	if (glewInit() != GLEW_OK)
+	{
+		std::cerr << "Unable to initalize GLEW" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	else
+		std::cout << "GLEW initialized\n";
+
+	for (int i = 0; i < 18; i += 3)
+	{
+		color[i] = 1.0f;
+		color[i + 1] = 0.0f;
+		color[i + 2] = 0.0f;
+		pColor[i] = 1.0f;
+		pColor[i + 1] = 0.0f;
+		pColor[i + 2] = 0.0f;
+	}
+	for (int i = 18 * 1; i < 18 * 2; i += 3)
+	{
+		color[i] = 0.0f;
+		color[i + 1] = 1.0f;
+		color[i + 2] = 0.0f;
+	}
+	for (int i = 18 * 2; i < 18 * 3; i += 3)
+	{
+		color[i] = 0.0f;
+		color[i + 1] = 0.0f;
+		color[i + 2] = 1.0f;
+	}
+	for (int i = 18 * 3; i < 18 * 4; i += 3)
+	{
+		color[i] = 1.0f;
+		color[i + 1] = 1.0f;
+		color[i + 2] = 0.0f;
+	}
+	for (int i = 18 * 4; i < 18 * 5; i += 3)
+	{
+		color[i] = 1.0f;
+		color[i + 1] = 0.0f;
+		color[i + 2] = 1.0f;
+	}
+	for (int i = 18 * 4; i < 18 * 5; i += 3)
+	{
+		color[i] = 1.0f;
+		color[i + 1] = 1.0f;
+		color[i + 2] = 1.0f;
+	}
+	for (int i = 18 * 5; i < 18 * 6; i += 3)
+	{
+		color[i] = 1.0f;
+		color[i + 1] = 0.0f;
+		color[i + 2] = 1.0f;
+	}
+
+
+	shaderProgramID = compileShaders();
+
+	glGenVertexArrays(2, VAO);
+	glGenBuffers(2, VBO);
+	glGenBuffers(2, VBOC);
+	//사각형
+	{
+		glBindVertexArray(VAO[0]);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(cube), cube, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBOC[0]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(color), color, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(1);
+	}
+	{
+		glBindVertexArray(VAO[1]);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(pyramid), pyramid, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBOC[1]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(pColor), pColor, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(1);
+
+	}
+	memset(isWire, true, 48);
+	memset(numbers, 0, 6);
+	glutDisplayFunc(drawScene);
+	glutKeyboardFunc(keyBoardEvent);
+	glutReshapeFunc(Reshape);//window??紐⑥뼇??諛붾붾븣留덈떎 ?몄텧???⑥닔瑜??깅줉?쒕떎.
+	glutTimerFunc(100, timerFunc, 1);
+	glutMainLoop();
+}
+GLvoid Reshape(int w, int h)
+{
+	glViewport(0, 0, w, h);
+	WIDTH = w;
+	HEIGTH = h;
+}
+GLvoid drawScene()
+{
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glMatrixMode(GL_MODELVIEW);
+	glEnable(GL_DEPTH_TEST);
+
+
+
+	glUseProgram(shaderProgramID);
+
+	initMatrix();
+	viewMatrix = glm::mat4(1.0f);
+	projectionMatrix = glm::mat4(1.0f);
+
+	auto modelTransformLocation = glGetUniformLocation(shaderProgramID, "transform");
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+
+	auto viewTransformLocation = glGetUniformLocation(shaderProgramID, "viewTransform");
+	glUniformMatrix4fv(viewTransformLocation, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
+
+	auto projectionTransformLocation = glGetUniformLocation(shaderProgramID, "projectionTransform");
+	glUniformMatrix4fv(projectionTransformLocation, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	//get location of uniform!
+
+	auto eye = glm::vec3(cameraXpos, cameraYpos + 4.0f, cameraZpos);
+
+	//auto crossVector = glm::cross(eye, glm::vec3(0.0f, 1.0f, 0.0f));
+	viewMatrix = glm::lookAt(eye, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glUniformMatrix4fv(viewTransformLocation, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+	if (isOrtho)
+		projectionMatrix = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 0.1f, 100.0f);
+	else
+		projectionMatrix = glm::perspective(glm::radians(120.0f), 4.0f / 3.0f, 0.1f, 1000.0f);
+	glUniformMatrix4fv(projectionTransformLocation, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+
+
+	if (isPyramid)
+	{
+		auto oldVal1 = pyramid[24];
+		auto oldVal2 = pyramid[25];
+		auto oldVal3 = pyramid[26];
+
+		auto oldVal4 = pyramid[33];
+		auto oldVal5 = pyramid[34];
+		auto oldVal6 = pyramid[35];
+
+		auto oldVal7 = pyramid[42];
+		auto oldVal8 = pyramid[43];
+		auto oldVal9 = pyramid[44];
+
+		auto oldVal10 = pyramid[51];
+		auto oldVal11 = pyramid[52];
+		auto oldVal12 = pyramid[53];
+
+
+		auto temp1 = glm::vec4(pyramid[24], pyramid[25], pyramid[26], 1.0f);
+		auto temp2 = glm::vec4(pyramid[33], pyramid[34], pyramid[35], 1.0f);
+		auto temp3 = glm::vec4(pyramid[42], pyramid[43], pyramid[44], 1.0f);
+		auto temp4 = glm::vec4(pyramid[51], pyramid[52], pyramid[53], 1.0f);
+		initMatrix();
+		transMatrix = glm::rotate(transMatrix, glm::radians(yradius), glm::vec3(1.0f, 0.0f, 0.0f));
+		temp1 = temp1 * transMatrix;
+		initMatrix();
+		transMatrix = glm::rotate(transMatrix, glm::radians(-yradius), glm::vec3(1.0f, 0.0f, 0.0f));
+		temp2 = temp2 * transMatrix;
+		initMatrix();
+		transMatrix = glm::rotate(transMatrix, glm::radians(yradius), glm::vec3(0.0f, 0.0f, 1.0f));
+		temp3 = temp3 * transMatrix;
+		initMatrix();
+		transMatrix = glm::rotate(transMatrix, glm::radians(-yradius), glm::vec3(0.0f, 0.0f, 1.0f));
+		temp4 = temp4 * transMatrix;
+		pyramid[24] = temp1.x;
+		pyramid[25] = temp1.y;
+		pyramid[26] = temp1.z;
+
+		pyramid[33] = temp2.x;
+		pyramid[34] = temp2.y;
+		pyramid[35] = temp2.z;
+
+		pyramid[42] = temp3.x;
+		pyramid[43] = temp3.y;
+		pyramid[44] = temp3.z;
+
+		pyramid[51] = temp4.x;
+		pyramid[52] = temp4.y;
+		pyramid[53] = temp4.z;
+
+		glBindVertexArray(VAO[1]);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(pyramid), pyramid, GL_DYNAMIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+		glEnableVertexAttribArray(0);
+		glBindVertexArray(VAO[1]);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glPointSize(3);
+		//glDrawArrays(GL_POINTS, 8, 1);
+		initMatrix();
+
+		transMatrix = glm::rotate(transMatrix, glm::radians(radius), glm::vec3(0.0f, 1.0f, 0.0f));
+		glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+		glDrawArrays(GL_TRIANGLES, 0, 18);
+
+
+		pyramid[24] = oldVal1;
+		pyramid[25] = oldVal2;
+		pyramid[26] = oldVal3;
+
+		pyramid[33] = oldVal4;
+		pyramid[34] = oldVal5;
+		pyramid[35] = oldVal6;
+
+		pyramid[42] = oldVal7;
+		pyramid[43] = oldVal8;
+		pyramid[44] = oldVal9;
+
+		pyramid[51] = oldVal10;
+		pyramid[52] = oldVal11;
+		pyramid[53] = oldVal12;
+
+	}
+	else
+	{
+		if (isFrontOpen)
+		{
+			auto oldVal1 = cube[54];
+			auto oldVal2 = cube[55];
+			auto oldVal3 = cube[56];
+
+			auto oldVal4 = cube[66];
+			auto oldVal5 = cube[67];
+			auto oldVal6 = cube[68];
+
+			auto oldVal7 = cube[69];
+			auto oldVal8 = cube[70];
+			auto oldVal9 = cube[71];
+
+			auto temp1 = glm::vec4(cube[54], cube[55], cube[56], 1.0f);
+			auto temp2 = glm::vec4(cube[66], cube[67], cube[68], 1.0f);
+			auto temp3 = glm::vec4(cube[69], cube[70], cube[71], 1.0f);
+			initMatrix();
+			transMatrix = glm::rotate(transMatrix, glm::radians(-yradius), glm::vec3(1.0f, 0.0f, 0.0f));
+			auto zScale = cube[56] - cube[56] * glm::cos(glm::radians(-yradius));
+			transMatrix = glm::scale(transMatrix, glm::vec3(1.0f, 1.0f, 1.0f + zScale * 1.5));
+			temp1 = temp1 * transMatrix;
+			temp2 = temp2 * transMatrix;
+			temp3 = temp3 * transMatrix;
+			cube[54] = temp1.x;
+			cube[55] = temp1.y;
+			cube[56] = temp1.z;
+
+			cube[66] = temp2.x;
+			cube[67] = temp2.y;
+			cube[68] = temp2.z;
+
+			cube[69] = temp3.x;
+			cube[70] = temp3.y;
+			cube[71] = temp3.z;
+
+			glBindVertexArray(VAO[0]);
+
+			glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(cube), cube, GL_DYNAMIC_DRAW);
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+			glEnableVertexAttribArray(0);
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+			cube[54] = oldVal1;
+			cube[55] = oldVal2;
+			cube[56] = oldVal3;
+
+			cube[66] = oldVal4;
+			cube[67] = oldVal5;
+			cube[68] = oldVal6;
+
+			cube[69] = oldVal7;
+			cube[70] = oldVal8;
+			cube[71] = oldVal9;
+		}
+		if (isUpRotate)
+		{
+			glBindVertexArray(VAO[0]);
+
+			glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(cube), cube, GL_DYNAMIC_DRAW);
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+			glEnableVertexAttribArray(0);
+			initMatrix();
+			transMatrix = glm::rotate(transMatrix, glm::radians(radius), glm::vec3(0.0f, 1.0f, 0.0f));
+			transMatrix = glm::translate(transMatrix, glm::vec3(0.0f, 1.0f, 0.0f));
+			transMatrix = glm::rotate(transMatrix, glm::radians(xradius), glm::vec3(1.0f, 0.0f, 0.0f));
+			transMatrix = glm::translate(transMatrix, glm::vec3(0.0f, -1.0f, 0.0f));
+			glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+			glDrawArrays(GL_TRIANGLES, 30, 6);
+
+		}
+		
+		initMatrix();
+		transMatrix = glm::rotate(transMatrix, glm::radians(radius), glm::vec3(0.0f, 1.0f, 0.0f));
+		glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+		if(isUpRotate)
+			glDrawArrays(GL_TRIANGLES, 0, 30);
+		else glDrawArrays(GL_TRIANGLES, 0, 36);
+		
+	}
+	glutSwapBuffers();
+}
+GLuint compileShaders()
+{
+	VertexShader vShader1("vertexSource.txt");
+	vShader1.createAndCompile();
+	FragShader fShader1("FragSource.txt");
+	fShader1.createAndCompile();
+	ShaderProgram ShaderProgram1;
+	ShaderProgram1.attachAndLink({ fShader1.retShader(),vShader1.retShader() });
+
+	return ShaderProgram1.retProgramID();
+}
+GLvoid keyBoardEvent(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case 'p':
+		if (isOrtho)
+			isOrtho = false;
+		else isOrtho = true;
+		break;
+	case 'o':
+		if (isPyramid)
+			isPyramid = false;
+		else isPyramid = true;
+		break;
+	case 'y':
+		if (isRotation)
+			isRotation = false;
+		else isRotation = true;
+		break;
+	case 'f':
+		if (isFrontOpen)
+			isFrontOpen = false;
+		else isFrontOpen = true;
+		break;
+	case 't':
+		if (isUpRotate)
+			isUpRotate = false;
+		else isUpRotate = true;
+		break;
+	}
+}
+
+GLvoid timerFunc(int index)
+{
+	if (isYinc)
+	{
+		yradius += 3.0f;
+		if (yradius >= 90.0f)
+			isYinc = false;
+	}
+	else
+	{
+		yradius -= 3.0f;
+		if (yradius <= 0.0f)
+			isYinc = true;
+	}
+	xradius += 3.0f;
+	if (isRotation)
+	{
+		radius += 3.0f;
+	}
+	glutTimerFunc(100, timerFunc, 1);
+	glutPostRedisplay();
+}
+
+GLvoid initMatrix()
+{
+	glLoadIdentity();
+	for (int i = 0; i < 4; ++i)
+	{
+		for (int j = 0; j < 4; ++j)
+		{
+			transMatrix[i][j] = 0.0f;
+		}
+	}
+	transMatrix[0][0] = 1.0f;
+	transMatrix[1][1] = 1.0f;
+	transMatrix[2][2] = 1.0f;
+	transMatrix[2][2] = 1.0f;
+	transMatrix[3][3] = 1.0f;
+}

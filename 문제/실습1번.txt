@@ -1,0 +1,95 @@
+#include "GL/glew.h"
+#include "GL/freeglut.h"
+#include "GL/glm/glm.hpp"
+#include "GL/glm/ext.hpp"
+#include "GL/glm/gtc/matrix_transform.hpp"
+#include <iostream>
+#include <random>
+int windowNumber = 0;
+bool isTimerOn = false;
+GLvoid drawScene(GLvoid);
+GLvoid Reshape(int w, int h);
+GLvoid keyDown(unsigned char, int, int);
+GLvoid Timer1(int);
+std::random_device rd;
+std::default_random_engine dre(rd());
+std::uniform_real_distribution<> urd(0.0f, 1.0f);
+void main(int argc, char** argv)
+{
+	//create window
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+	glutInitWindowPosition(0, 0);
+	glutInitWindowSize(800, 600);
+	windowNumber = glutCreateWindow("2016182044HJO");
+
+	//GLEW init
+	glewExperimental = GL_TRUE;
+	if (glewInit() != GLEW_OK)
+	{
+		std::cerr << "Unable to initalize GLEW" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	else
+		std::cout << "GLEW initialized\n";
+	glutDisplayFunc(drawScene);
+	glutReshapeFunc(Reshape);//window의 모양이 바뀔때마다 호출될 함수를 등록한다.
+	glutKeyboardFunc(keyDown);
+	glutTimerFunc(100, Timer1, 1);
+	glutMainLoop();
+}
+GLvoid drawScene()//glutpostredisplay가 호출되면 DisplayFunc에 등록된 콜백함수가 호출된다.
+{
+	glClear(GL_COLOR_BUFFER_BIT);
+	glutSwapBuffers();//더블버퍼모드이기때문에 flush대신에 glutswapbuffers를 호출한다.
+}
+GLvoid Reshape(int w, int h)
+{
+	glViewport(0, 0, w, h);
+}
+GLvoid keyDown(unsigned char ch,int,int)
+{
+	switch (ch)
+	{
+	case 'r':
+		glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+		break;
+	case 'g':
+		glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+		break;
+	case 'b':
+		glClearColor(0.0f, 0.0f, 1.0f, 1.0f);
+		break;
+	case 'a':
+		glClearColor(urd(dre), urd(dre), urd(dre), 1.0f);
+		break;
+	case 'w':
+		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+		break;
+	case 'k':
+		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		break;
+	case 't':
+		isTimerOn = true;
+		break;
+	case 's':
+		isTimerOn = false;
+		break;
+	case 'q':
+		glutDestroyWindow(windowNumber);
+		break;
+	default:
+		std::cout << "wrong input.....\n";
+	}
+	glutPostRedisplay();
+}
+GLvoid Timer1(int value)
+{
+	if (isTimerOn)
+	{
+		glClearColor(urd(dre), urd(dre), urd(dre), 1.0f);
+		glutPostRedisplay();
+	}
+	glutTimerFunc(100, Timer1, 1);
+	//타이머 재등록해줘야 계속호출된다...
+}

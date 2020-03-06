@@ -1,0 +1,450 @@
+//http://www.opengl-tutorial.org/kr/beginners-tutorials/tutorial-7-model-loading/
+
+
+
+#define _CRT_SECURE_NO_WARNINGS
+#include "GL/glew.h"
+#include "GL/freeglut.h"
+#include "GL/glm/glm.hpp"
+#include "GL/glm/ext.hpp"
+#include "GL/glm/gtc/matrix_transform.hpp"
+#include <iostream>
+#include "VertexShader.hpp"
+#include "FragShader.hpp"
+#include "ShaderProgram.hpp"
+#include <vector>
+#include <random>
+#include <cmath>
+#include <memory>
+
+/*
+VBO는 최소 250000개의 정점을 담고있을수있다.
+Depends on the video card and the amount of video RAM.
+ATI cards with 128 MB of video RAM are limited by the drivers to a maximum of 32 MB per vertex buffer.
+With multiple buffers the total can easily go beyond 32 MB with no problem, but I haven’t tried to find a cap.
+*/
+std::vector< unsigned int > vertexIndices, uvIndices, normalIndices;
+std::vector< glm::vec3 > temp_vertices;
+std::vector< glm::vec2 > temp_uvs;
+std::vector< glm::vec3 > temp_normals;
+std::vector< glm::vec3 > outvertex, outnormal;
+std::vector< glm::vec2 > outuv;
+int indices[36];
+int normIndices[36];
+float coords[24];
+float normals[24];
+float circle[36 * 3];
+float craneXpos = 0.0f;
+int loadObj(const char* filename);
+
+int windowNumber = 0;
+int percentage = 0;
+
+int indexFrame = 0;
+int curHour = 0;
+int curMin = 0;
+int curSec = 0;
+int numbers[6];
+int indexOfCamera = 0;
+
+bool isTimerOn1 = false;
+bool isTimerOn2 = false;
+bool isRotate = false;
+bool isLight = true;
+bool isRight = false;
+
+float circleRads = 7.0f;
+float step = 3.5f;
+float cameraZpos = 10.0f;
+float cameraXpos = 0.0f;
+float cameraYpos = 2.0f;
+float yradius = 0.0f;
+float radius = 0.0f;
+float xradius = 0.0f;
+float zSclae = 0.0f;
+const int vertexSize = 30;
+const float perDegree = 360 / vertexSize;
+
+float lightXpos = -4.0f;
+float lightYpos = 4.0f;
+float lightZpos = 4.0f;
+
+GLvoid drawScene(GLvoid);
+GLvoid Reshape(int w, int h);
+GLvoid keyBoardEvent(unsigned char key, int x, int y);
+GLvoid timerFunc(int);
+GLvoid initMatrix();
+
+GLuint compileShaders();
+
+int WIDTH = 800;
+int HEIGTH = 600;
+
+GLuint shaderProgramID;
+
+GLUquadricObj *qobj;
+
+auto transMatrix = glm::mat4(1.0f);
+auto viewMatrix = glm::mat4(1.0f);
+auto projectionMatrix = glm::mat4(1.0f);
+
+
+float plane[]
+{
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,1.0f,
+	1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f
+};
+
+unsigned int VBO, VAO[2], VBOC[2], EBO, VBON, EBON,VBOP;
+
+void main(int argc, char** argv)
+{
+	//create window
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+	glutInitWindowPosition(0, 0);
+	glutInitWindowSize(WIDTH, HEIGTH);
+	windowNumber = glutCreateWindow("2016182044HJO");
+	//GLEW init
+	glewExperimental = GL_TRUE;
+	if (glewInit() != GLEW_OK)
+	{
+		std::cerr << "Unable to initalize GLEW" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	else
+		std::cout << "GLEW initialized\n";
+
+
+
+	shaderProgramID = compileShaders();
+	loadObj("cube.txt");
+	for (int i = 0; i < 36; ++i)
+	{
+		indices[i] = vertexIndices[i] - 1;
+		normIndices[i] = normalIndices[i] - 1;
+	}
+	for (int i = 0; i < temp_vertices.size(); ++i)
+	{
+		coords[i * 3] = temp_vertices[i].x;
+		coords[i * 3 + 1] = temp_vertices[i].y;
+		coords[i * 3 + 2] = temp_vertices[i].z;
+	}
+	for (int i = 0; i < temp_normals.size(); ++i)
+	{
+		normals[i * 3] = temp_normals[i].x;
+		normals[i * 3 + 1] = temp_normals[i].y;
+		normals[i * 3 + 2] = temp_normals[i].z;
+	}
+	for (int i = 0; i < 36 * 3; i+=3)
+	{
+		circle[i] = circleRads * glm::cos(glm::radians(float(i/3 * 10)));
+		circle[i + 1] = 4.0f;
+		circle[i + 2] = circleRads * glm::sin(glm::radians(float(i/3 * 10)));
+	}
+	glGenVertexArrays(2, VAO);
+	glGenBuffers(1, &VBO);
+	glGenBuffers(1, &EBO);
+	glGenBuffers(1, &VBON);
+	glGenBuffers(1, &VBOP);
+
+	glBindVertexArray(VAO[0]);
+	
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(coords), coords, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+	glEnableVertexAttribArray(0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, VBON);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(normals), normals, GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+	glEnableVertexAttribArray(1);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+	
+	glBindVertexArray(VAO[1]);
+	glBindBuffer(GL_ARRAY_BUFFER, VBOP);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(plane), plane, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);	// Vertex attributes stay the same
+	glEnableVertexAttribArray(0);
+
+	glutDisplayFunc(drawScene);
+	glutKeyboardFunc(keyBoardEvent);
+	glutReshapeFunc(Reshape);
+	glutTimerFunc(100, timerFunc, 1);
+	glutMainLoop();
+}
+GLvoid Reshape(int w, int h)
+{
+	glViewport(0, 0, w, h);
+	WIDTH = w;
+	HEIGTH = h;
+}
+GLvoid drawScene()
+{
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glMatrixMode(GL_MODELVIEW);
+
+	glEnable(GL_DEPTH_TEST);
+
+	glUseProgram(shaderProgramID);
+	
+	initMatrix();
+	viewMatrix = glm::mat4(1.0f);
+	projectionMatrix = glm::mat4(1.0f);
+
+	auto modelTransformLocation = glGetUniformLocation(shaderProgramID, "transform");
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+
+	auto viewTransformLocation = glGetUniformLocation(shaderProgramID, "viewTransform");
+	glUniformMatrix4fv(viewTransformLocation, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
+
+	auto projectionTransformLocation = glGetUniformLocation(shaderProgramID, "projectionTransform");
+	glUniformMatrix4fv(projectionTransformLocation, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	//get location of uniform!
+
+	auto eye = glm::vec3(cameraXpos, cameraYpos, cameraZpos);
+	
+	auto viewPosLocation = glGetUniformLocation(shaderProgramID, "viewPos");
+	glUniform3f(viewPosLocation, eye.x, eye.y, eye.z);
+	auto lightPosLocation = glGetUniformLocation(shaderProgramID, "lightPos");
+	glUniform3f(lightPosLocation, circle[indexOfCamera], circle[indexOfCamera + 1], circle[indexOfCamera + 2]);
+	auto lightColorLocation = glGetUniformLocation(shaderProgramID, "lightColor");
+	if(isLight)
+		glUniform3f(lightColorLocation, 1.0f, 1.0f, 1.0f);
+	else
+		glUniform3f(lightColorLocation, 0.2f, 0.2f, 0.2f);
+
+	auto objColorLocation = glGetUniformLocation(shaderProgramID, "objectColor");
+	glUniform3f(objColorLocation, 1.0f, 0.0f, 0.0f);
+
+	viewMatrix = glm::lookAt(eye, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glUniformMatrix4fv(viewTransformLocation, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+	projectionMatrix = glm::perspective(glm::radians(120.0f), 4.0f / 3.0f, 0.1f, 1000.0f);
+	glUniformMatrix4fv(projectionTransformLocation, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	
+	transMatrix = glm::translate(transMatrix, glm::vec3(craneXpos, 0.0f, 0.0f));
+	transMatrix = glm::scale(transMatrix, glm::vec3(3.0f, 1.0f, 3.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glBindVertexArray(VAO[0]);
+	glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+
+	initMatrix();
+	
+	transMatrix = glm::translate(transMatrix, glm::vec3(craneXpos, 2.0f, 0.0f));
+	transMatrix = glm::scale(transMatrix, glm::vec3(2.0f, 1.0f, 2.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glUniform3f(objColorLocation, 0.0f, 1.0f, 0.0f);
+	glBindVertexArray(VAO[0]);
+	glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+
+	initMatrix();
+
+	transMatrix = glm::translate(transMatrix, glm::vec3(craneXpos, 4.0f, 0.0f));
+	transMatrix = glm::scale(transMatrix, glm::vec3(1.0f, 1.0f, 1.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glUniform3f(objColorLocation, 0.0f, 0.0f, 1.0f);
+	glBindVertexArray(VAO[0]);
+	glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+
+	initMatrix();
+	transMatrix = glm::scale(transMatrix, glm::vec3(7.0f, 1.0f, 7.0f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glBindVertexArray(VAO[1]);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	//draw bulb
+	initMatrix();
+	transMatrix = glm::translate(transMatrix, glm::vec3(circle[indexOfCamera], circle[indexOfCamera + 1], circle[indexOfCamera + 2]));
+	transMatrix = glm::scale(transMatrix, glm::vec3(0.2f, 0.2f, 0.2f));
+	glUniformMatrix4fv(modelTransformLocation, 1, GL_FALSE, glm::value_ptr(transMatrix));
+	glUniform3f(objColorLocation, 1.0f, 1.0f, 1.0f);
+	glBindVertexArray(VAO[0]);
+	glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+
+	glutSwapBuffers();
+}
+GLuint compileShaders()
+{
+	VertexShader vShader1("vertexSource.txt");
+	vShader1.createAndCompile();
+	FragShader fShader1("FragSource.txt");
+	fShader1.createAndCompile();
+	ShaderProgram ShaderProgram1;
+	ShaderProgram1.attachAndLink({ fShader1.retShader(),vShader1.retShader() });
+
+	return ShaderProgram1.retProgramID();
+}
+GLvoid keyBoardEvent(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case 'r':
+		if (isRotate)
+			isRotate = false;
+		else isRotate = true;
+		break;
+	case 'm':
+		if (isLight)
+			isLight = false;
+		else isLight = true;
+	}
+}
+
+GLvoid timerFunc(int index)
+{
+	if (isRotate)
+	{
+		indexOfCamera += 3;
+		if (indexOfCamera == 36 * 3)
+			indexOfCamera = 0;
+	}
+	if (isRight)
+	{
+		craneXpos += 0.2f;
+		if (craneXpos >= 3.0f)
+			isRight = false;
+	}
+	else
+	{
+		craneXpos -= 0.2f;
+		if (craneXpos <= -3.0f)
+			isRight = true;
+	}
+	glutTimerFunc(100, timerFunc, 1);
+	glutPostRedisplay();
+}
+
+GLvoid initMatrix()
+{
+	glLoadIdentity();
+	for (int i = 0; i < 4; ++i)
+	{
+		for (int j = 0; j < 4; ++j)
+		{
+			transMatrix[i][j] = 0.0f;
+		}
+	}
+	transMatrix[0][0] = 1.0f;
+	transMatrix[1][1] = 1.0f;
+	transMatrix[2][2] = 1.0f;
+	transMatrix[2][2] = 1.0f;
+	transMatrix[3][3] = 1.0f;
+}
+
+float sumX = 0.0, sumY = 0.0, sumZ = 0.0;
+float aveX, aveY, aveZ;
+float scaleX, scaleY, scaleZ;
+float minX = -20.0, minY = -20.0, minZ = -20.0;
+float maxX = 20.0, maxY = 20.0, maxZ = 20.0;
+float scaleAll;
+
+int loadObj(const char* filename)
+{
+	FILE* objFile;
+
+	fopen_s(&objFile, filename, "rb");
+
+	if (objFile == NULL) {
+		printf("Impossible to open the file !\n");
+		return false;
+	}
+	while (1) {
+
+		char lineHeader[128];
+		// read the first word of the line
+		int res = fscanf(objFile, "%s", lineHeader);
+		if (res == EOF)
+			break; // EOF = End Of File. Quit the loop.
+		if (strcmp(lineHeader, "v") == 0) {
+			glm::vec3 vertex;
+			fscanf(objFile, "%f %f %f\n", &vertex.x, &vertex.y, &vertex.z);
+
+			if (vertex.x < minX) minX = vertex.x;
+			if (vertex.y < minY) minY = vertex.y;
+			if (vertex.z < minZ) minZ = vertex.z;
+			if (vertex.x > maxX) maxX = vertex.x;
+			if (vertex.y > maxY) maxY = vertex.y;
+			if (vertex.z > maxZ) maxZ = vertex.z;
+			sumX += vertex.x;
+			sumY += vertex.y;
+			sumZ += vertex.z;
+
+			temp_vertices.push_back(vertex);
+		}
+		else if (strcmp(lineHeader, "vt") == 0) {
+			glm::vec2 uv;
+			fscanf(objFile, "%f %f\n", &uv.x, &uv.y);
+			temp_uvs.push_back(uv);
+		}
+		else if (strcmp(lineHeader, "vn") == 0) {
+			glm::vec3 normal;
+			fscanf(objFile, "%f %f %f\n", &normal.x, &normal.y, &normal.z);
+			temp_normals.push_back(normal);
+		}
+		else if (strcmp(lineHeader, "f") == 0) {
+			std::string vertex1, vertex2, vertex3;
+			unsigned int vertexIndex[3], uvIndex[3], normalIndex[3];
+			int matches = fscanf(objFile, "%d/%d/%d %d/%d/%d %d/%d/%d\n", &vertexIndex[0], &uvIndex[0], &normalIndex[0], &vertexIndex[1], &uvIndex[1], &normalIndex[1], &vertexIndex[2], &uvIndex[2], &normalIndex[2]);
+			if (matches != 9) {
+				printf("File can't be read by our simple parser : ( Try exporting with other options\n");
+				return false;
+			}
+			vertexIndices.push_back(vertexIndex[0]);
+			vertexIndices.push_back(vertexIndex[1]);
+			vertexIndices.push_back(vertexIndex[2]);
+			uvIndices.push_back(uvIndex[0]);
+			uvIndices.push_back(uvIndex[1]);
+			uvIndices.push_back(uvIndex[2]);
+			normalIndices.push_back(normalIndex[0]);
+			normalIndices.push_back(normalIndex[1]);
+			normalIndices.push_back(normalIndex[2]);
+		}
+	}
+
+	aveX = sumX / vertexIndices.size();
+	aveY = sumY / vertexIndices.size();
+	aveZ = sumZ / vertexIndices.size();
+	scaleX = (1.0 - maxX) * 10 + 1;
+	scaleY = (1.0 - maxY) * 10 + 1;
+	scaleZ = (1.0 - maxZ) * 10 + 1;
+
+	if (scaleX > scaleY) {
+		if (scaleY > scaleZ)
+			scaleAll = scaleZ;
+		else
+			scaleAll = scaleY;
+	}
+	else if (scaleX < scaleY) {
+		if (scaleX < scaleZ)
+			scaleAll = scaleX;
+		else
+			scaleAll = scaleZ;
+	}
+
+
+	for (unsigned int i = 0; i < vertexIndices.size(); i++) {
+		unsigned int vertexIndex = vertexIndices[i];
+		glm::vec3 vertex = temp_vertices[vertexIndex - 1];
+		outvertex.push_back(vertex);
+	}
+	for (unsigned int i = 0; i < uvIndices.size(); i++) {
+		unsigned int uvIndex = uvIndices[i];
+		glm::vec2 vertex = temp_uvs[uvIndex - 1];
+		outuv.push_back(vertex);
+	}
+	for (unsigned int i = 0; i < normalIndices.size(); i++) {
+		unsigned int normalIndex = normalIndices[i];
+		glm::vec3 vertex = temp_normals[normalIndex - 1];
+		outnormal.push_back(vertex);
+	}
+
+	return outvertex.size();
+}
